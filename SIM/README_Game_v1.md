@@ -412,5 +412,6 @@
 ## Смотри также
 
 - [README_Game_proposal.md](README_Game_proposal.md) — исходное предложение
+- [README_SIM_DATA.md](README_SIM_DATA.md) — контракт данных и модель производства первой версии
 - [README_INDEX.md](../KB/README_INDEX.md) — оглавление базы знаний
 - [AGENTS.md](../AGENTS.md) — правила для агентов
