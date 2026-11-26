@@ -1,0 +1,7 @@
+schema: spec-driven
+project: AviaComponent
+created: 2026-11-26
+rules:
+  normative_words: [SHALL, MUST]
+  scenarios: "#### Scenario: с WHEN/THEN"
+  tasks: "только чекбоксы"

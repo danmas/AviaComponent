@@ -1,0 +1,32 @@
+# Локальное и служебное
+_*
+!README.md
+
+# Ключ обфускации и архивы оригиналов не должны попадать в репозиторий
+*_OBFUSCATION_KEY.md
+*_SRC/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# ОС и редакторы
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Логи и временное
+*.log
+*.tmp
+*.obf
+*.mdc
+~$*
