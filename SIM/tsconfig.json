@@ -14,5 +14,5 @@
     "types": ["node"],
     "rootDir": "."
   },
-  "include": ["contract/**/*.ts", "plant/**/*.ts", "system/**/*.ts", "test/**/*.ts"]
+  "include": ["contract/**/*.ts", "plant/**/*.ts", "run/**/*.ts", "system/**/*.ts", "test/**/*.ts"]
 }
