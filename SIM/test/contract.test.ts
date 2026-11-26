@@ -185,3 +185,20 @@ test('журнал фиксирует основание и не содержи�
   assert.equal(protocol[0]?.verdict, 'diverged');
   assert.equal(JSON.stringify(protocol).includes('score'), false);
 });
+
+test('журнал отказывает при пустом действии и покрытии вне доли', () => {
+  const base = {
+    at: instant(15),
+    action: 'приоритет партии batch-3: ранг 0',
+    basisMetric: 'scheduleRisk' as const,
+    basisValue: 'overdue=1',
+    coverage: 0.5,
+    consequence: 'ранг действует с начала смены',
+  };
+  assert.throws(() => recordDecision({ ...base, action: '   ' }), /пустое действие/);
+  assert.throws(() => recordDecision({ ...base, coverage: 1.5 }), /доля от 0 до 1/);
+  assert.throws(() => recordDecision({ ...base, coverage: -0.1 }), /доля от 0 до 1/);
+  assert.throws(() => recordDecision({ ...base, coverage: Number.NaN }), /доля от 0 до 1/);
+  const ok = recordDecision(base);
+  assert.equal(Object.isFrozen(ok), true);
+});

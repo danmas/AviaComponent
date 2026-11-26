@@ -52,12 +52,22 @@ export interface ShopRun {
   readonly failureBusyMinute: readonly FailureDraw[];
 }
 
+/** Приоритет партии, действующий с момента решения. Ранг меньше — очередь раньше. */
+export interface PriorityOrder {
+  readonly batchId: string;
+  readonly rank: number;
+  /** Минута прогона, с которой ранг действует. Раньше этого момента приоритет прежний. */
+  readonly appliedAt: number;
+}
+
 export interface ShopRunInput {
   readonly shop: PlantState;
   readonly dueByBatch: ReadonlyMap<string, number | null>;
   readonly scrapByOperation: ReadonlyMap<string, number>;
   readonly rng: Rng;
   readonly horizonShifts: number;
+  /** Решения о приоритете. Пустой список — очередь сортируется как до этого изменения. */
+  readonly priority?: readonly PriorityOrder[];
 }
 
 interface Job {
@@ -130,7 +140,34 @@ export function runShop(input: ShopRunInput): ShopRun {
     return due === undefined ? null : due;
   }
 
-  function compareReady(left: PlantOperation, right: PlantOperation): number {
+  /**
+   * Ранг, действующий на этот момент. До appliedAt решение не видно.
+   * Повтор по той же партии перекрывает прежний ранг с нового момента:
+   * берётся запись с большим appliedAt, при равном моменте — более поздняя в списке.
+   */
+  function rankOf(batchId: string, now: number): number | null {
+    let best: PriorityOrder | null = null;
+    for (const row of input.priority ?? []) {
+      if (row.batchId !== batchId || row.appliedAt > now) {
+        continue;
+      }
+      if (best === null || row.appliedAt >= best.appliedAt) {
+        best = row;
+      }
+    }
+    return best === null ? null : best.rank;
+  }
+
+  function compareReady(left: PlantOperation, right: PlantOperation, now: number): number {
+    const leftRank = rankOf(left.batchId, now);
+    const rightRank = rankOf(right.batchId, now);
+    if (leftRank !== null || rightRank !== null) {
+      const leftValue = leftRank ?? Number.MAX_SAFE_INTEGER;
+      const rightValue = rightRank ?? Number.MAX_SAFE_INTEGER;
+      if (leftValue !== rightValue) {
+        return leftValue - rightValue;
+      }
+    }
     const leftDue = dueOf(left.batchId);
     const rightDue = dueOf(right.batchId);
     if ((leftDue === null) !== (rightDue === null)) {
@@ -253,7 +290,7 @@ export function runShop(input: ShopRunInput): ShopRun {
       }
       const candidates = shop.operations
         .filter((item) => item.status === 'ready' && item.areaId === resource.areaId)
-        .sort(compareReady);
+        .sort((left, right) => compareReady(left, right, now));
       for (const candidate of candidates) {
         const duration = occupationMinutes(candidate.effort);
         if (duration <= 0) {

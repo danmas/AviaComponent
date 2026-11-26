@@ -11,8 +11,18 @@
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "rootDir": "."
   },
-  "include": ["contract/**/*.ts", "plant/**/*.ts", "run/**/*.ts", "system/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "contract/**/*.ts",
+    "plant/**/*.ts",
+    "run/**/*.ts",
+    "system/**/*.ts",
+    "api/**/*.ts",
+    "api-client/**/*.ts",
+    "test/**/*.ts"
+  ]
 }

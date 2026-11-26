@@ -5,17 +5,27 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SIM_ROOT = path.resolve(HERE, '..');
 
-export type Zone = 'contract' | 'plant' | 'system' | 'other';
+export type Zone = 'contract' | 'plant' | 'system' | 'api' | 'api-client' | 'other';
 
 const RANDOM_CALL = ['Math', 'random'].join('.');
+
+const HTTP_LIBRARIES = new Set(['fastify', 'express', 'node:http', 'node:https']);
+
+function isHttpLibrary(specifier: string): boolean {
+  return HTTP_LIBRARIES.has(specifier) || specifier.startsWith('@fastify/');
+}
+
+function topFolder(filePath: string, root: string): string {
+  const relative = path.relative(root, path.resolve(filePath));
+  return relative.split(path.sep)[0] ?? '';
+}
 
 const IMPORT_RE = /(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\sfrom\s+)?['"]([^'"]+)['"]/g;
 const DYNAMIC_RE = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-export function zoneOf(filePath: string): Zone {
-  const relative = path.relative(SIM_ROOT, path.resolve(filePath));
-  const top = relative.split(path.sep)[0];
-  if (top === 'contract' || top === 'plant' || top === 'system') {
+export function zoneOf(filePath: string, root = SIM_ROOT): Zone {
+  const top = topFolder(filePath, root);
+  if (top === 'contract' || top === 'plant' || top === 'system' || top === 'api' || top === 'api-client') {
     return top;
   }
   return 'other';
@@ -38,22 +48,46 @@ export function importSpecifiers(source: string): string[] {
   return found;
 }
 
-/** Правило сборки: Система не импортирует цех, контракт не импортирует ни один мир. */
-export function importViolation(importer: string, specifier: string): string | null {
+/**
+ * Система не импортирует цех. Контракт не импортирует миры.
+ * Ядро не импортирует сервер и HTTP-библиотеки. Каталог test/ — проверка, не ядро.
+ */
+export function importViolation(importer: string, specifier: string, root = SIM_ROOT): string | null {
+  const from = zoneOf(importer, root);
+  if (isHttpLibrary(specifier) && (from === 'plant' || from === 'system' || from === 'contract')) {
+    return `модуль «${from}» импортирует HTTP-библиотеку (${specifier})`;
+  }
+  // Клиент ходит к серверу по сети, а не импортом: библиотека транспорта ему закрыта.
+  if (from === 'api-client' && (isHttpLibrary(specifier) || specifier === 'ws' || specifier === 'react')) {
+    return `клиент импортирует библиотеку транспорта (${specifier})`;
+  }
   if (!specifier.startsWith('.')) {
     return null;
   }
   const resolved = path.normalize(path.join(path.dirname(importer), specifier));
-  const from = zoneOf(importer);
-  const to = zoneOf(resolved);
+  const to = zoneOf(resolved, root);
   if (from === 'system' && to === 'plant') {
     return `модуль Системы импортирует модуль предприятия (${specifier})`;
   }
   if (from === 'plant' && to === 'system') {
     return `модуль предприятия импортирует модуль Системы (${specifier})`;
   }
-  if (from === 'contract' && (to === 'plant' || to === 'system')) {
+  if (from === 'contract' && (to === 'plant' || to === 'system' || to === 'api' || to === 'api-client')) {
     return `контракт импортирует мир «${to}» (${specifier})`;
+  }
+  // Клиент ходит к серверу по сети, а не импортом: серверный рантайм ему закрыт.
+  // Типы контракта у клиента свои, сгенерированные из openapi.json.
+  if (from === 'api-client' && (to === 'api' || to === 'plant' || to === 'system')) {
+    return `клиент импортирует серверный модуль «${to}» (${specifier})`;
+  }
+  if (from === 'api-client' && isHttpLibrary(specifier)) {
+    return `клиент импортирует библиотеку транспорта (${specifier})`;
+  }
+  if (to === 'api' && from !== 'api') {
+    if (from === 'other' && topFolder(importer, root) === 'test') {
+      return null;
+    }
+    return `модуль «${from}» импортирует серверный модуль (${specifier})`;
   }
   return null;
 }
@@ -81,14 +115,26 @@ export function scanBoundary(root = SIM_ROOT): string[] {
     if (source.includes(RANDOM_CALL)) {
       violations.push(`${path.relative(root, file)}: вызов ${RANDOM_CALL}`);
     }
+    const zone = zoneOf(file);
+    if (zone === 'api' && hasEnum(source)) {
+      violations.push(`${path.relative(root, file)}: конструкция enum в серверной зоне`);
+    }
     for (const specifier of importSpecifiers(source)) {
-      const problem = importViolation(file, specifier);
+      const problem = importViolation(file, specifier, root);
       if (problem) {
         violations.push(`${path.relative(root, file)}: ${problem}`);
       }
     }
   }
   return violations;
+}
+
+/**
+ * strip-only режим Node не поддерживает enum: сервер обязан жить на `as const`
+ * и union-типах, иначе `npm run api` потребует сборки.
+ */
+export function hasEnum(source: string): boolean {
+  return /(^|\n)\s*(export\s+)?(const\s+)?enum\s+[A-Za-z_$]/.test(source);
 }
 
 function isDirectRun(): boolean {
@@ -100,7 +146,9 @@ function isDirectRun(): boolean {
 }
 
 if (isDirectRun()) {
-  const violations = scanBoundary();
+  const arg = process.argv[2];
+  const root = arg === undefined || arg === '' ? SIM_ROOT : path.resolve(arg);
+  const violations = scanBoundary(root);
   if (violations.length > 0) {
     for (const line of violations) {
       process.stderr.write(`${line}\n`);

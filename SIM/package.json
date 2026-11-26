@@ -4,10 +4,17 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && node --experimental-strip-types contract/boundary.ts",
-    "test": "npm run check && node --experimental-strip-types --test test/production.test.ts test/contract.test.ts test/metrics.test.ts test/engine.test.ts"
+    "test": "npm run check && node --experimental-strip-types --test test/production.test.ts test/contract.test.ts test/metrics.test.ts test/engine.test.ts test/priority.test.ts test/api.test.ts test/api-contract.test.ts test/openapi.test.ts test/api-client.test.ts",
+    "api": "node --experimental-strip-types api/main.ts",
+    "openapi": "node --experimental-strip-types api/schema.ts",
+    "api-client": "node --experimental-strip-types api/client-build.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@fastify/websocket": "^11.3.7",
+    "fastify": "^5.12.8"
   }
 }

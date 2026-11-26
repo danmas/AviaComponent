@@ -6,7 +6,7 @@ import { assertStandInSpec, CONTRACT_STAND } from '../contract/stand.ts';
 import { inShift, instant, SHIFT_MINUTES, shiftWindow, type SimInstant } from '../contract/time.ts';
 import { quantity, type AnyQuantity, type UnitKind } from '../contract/units.ts';
 import { launchBatch, tearOffBatch } from '../plant/batch.ts';
-import { MACHINE_MTBF_BUSY_MINUTES, REPAIR_MINUTES, runShop, type ShopCompletion, type ShopStart } from '../plant/engine.ts';
+import { MACHINE_MTBF_BUSY_MINUTES, REPAIR_MINUTES, runShop, type PriorityOrder, type ShopCompletion, type ShopStart } from '../plant/engine.ts';
 import { occupationMinutes } from '../plant/occupation.ts';
 import { ROUTE, type RouteStep } from '../plant/stand.ts';
 import { addDowntime, createShop, type PlantState } from '../plant/state.ts';
@@ -153,8 +153,20 @@ function orderStatus(order: StandOrder): OrderRecord['status'] {
   return order.material && order.designDoc && order.norms ? 'in-production' : 'dse';
 }
 
-export function runStand(input: { readonly seed: number; readonly level: LevelName; readonly overlay: OverlayName }): RunResult {
+export function runStand(input: {
+  readonly seed: number;
+  readonly level: LevelName;
+  readonly overlay: OverlayName;
+  /** Горизонт прогона. По умолчанию — значение стенда. Диапазон 1..horizonShiftsMax. */
+  readonly horizonShifts?: number;
+  /** Решения о приоритете, действующие с момента appliedAt. */
+  readonly priority?: readonly PriorityOrder[];
+}): RunResult {
   assertStandInSpec();
+  const horizon = input.horizonShifts ?? CONTRACT_STAND.horizonShifts;
+  if (!Number.isInteger(horizon) || horizon < 1 || horizon > CONTRACT_STAND.horizonShiftsMax) {
+    throw new Error(`Горизонт прогона — целое число от 1 до ${CONTRACT_STAND.horizonShiftsMax} смен.`);
+  }
   const rule = LEVEL_RULES[input.level];
   const catalog = ordersFor(input.level, input.overlay);
   const steps = processingSteps();
@@ -269,7 +281,8 @@ export function runStand(input: { readonly seed: number; readonly level: LevelNa
     dueByBatch,
     scrapByOperation,
     rng,
-    horizonShifts: CONTRACT_STAND.horizonShifts,
+    horizonShifts: horizon,
+    ...(input.priority === undefined ? {} : { priority: input.priority }),
   });
 
   const batchOrder = new Map<string, string>();
@@ -393,7 +406,7 @@ export function runStand(input: { readonly seed: number; readonly level: LevelNa
   let history: readonly PlanVersion[] = [];
   const snapshots: ShiftSnapshot[] = [];
   let areaLoads: AreaLoadRecord[] = [];
-  for (let index = 0; index < CONTRACT_STAND.horizonShifts; index += 1) {
+  for (let index = 0; index < horizon; index += 1) {
     const at = index * SHIFT_MINUTES;
     const version: PlanVersion = {
       id: `plan-shift-${index}`,
@@ -464,11 +477,11 @@ export function runStand(input: { readonly seed: number; readonly level: LevelNa
     areas: EXPECTED.loadAreas,
     shiftFacts: EXPECTED.marks,
   };
-  const lastWindow = shiftWindow(CONTRACT_STAND.horizonShifts - 1, CONTRACT_STAND.horizonShifts);
+  const lastWindow = shiftWindow(horizon - 1, horizon);
   const metrics = fourMetrics(records, levelArgs, lastWindow);
   const acceptedByShift = [];
-  for (let index = 0; index < CONTRACT_STAND.horizonShifts; index += 1) {
-    const window = shiftWindow(index, CONTRACT_STAND.horizonShifts);
+  for (let index = 0; index < horizon; index += 1) {
+    const window = shiftWindow(index, horizon);
     const metric = acceptedShift(records, window, EXPECTED.marks);
     acceptedByShift.push({
       index,
@@ -484,6 +497,7 @@ export function runStand(input: { readonly seed: number; readonly level: LevelNa
   ].sort(byText);
 
   const report = buildReport({
+    horizonShifts: horizon,
     seed: input.seed,
     level: input.level,
     overlay: input.overlay,
@@ -513,6 +527,7 @@ export function runStand(input: { readonly seed: number; readonly level: LevelNa
 }
 
 function buildReport(input: {
+  readonly horizonShifts: number;
   readonly seed: number;
   readonly level: LevelName;
   readonly overlay: OverlayName;
@@ -555,8 +570,8 @@ function buildReport(input: {
     .map((fact) => ({ operationId: fact.operationId, trueTime: fact.trueTime, recordTime: fact.recordTime }))
     .sort((left, right) => left.trueTime - right.trueTime || byText(left.operationId, right.operationId));
   const shifts = [];
-  for (let index = 0; index < CONTRACT_STAND.horizonShifts; index += 1) {
-    const window = shiftWindow(index, CONTRACT_STAND.horizonShifts);
+  for (let index = 0; index < input.horizonShifts; index += 1) {
+    const window = shiftWindow(index, input.horizonShifts);
     const ready = input.readyAtShift.find((row) => row.index === index);
     shifts.push({
       index,
@@ -577,7 +592,7 @@ function buildReport(input: {
     overlay: input.overlay,
     expected: { orders: EXPECTED.orders, loadAreas: EXPECTED.loadAreas, marks: EXPECTED.marks },
     parameters: {
-      horizonShifts: CONTRACT_STAND.horizonShifts,
+      horizonShifts: input.horizonShifts,
       batchPieces: BATCH_PIECES,
       mtbfBusyMinutes: MACHINE_MTBF_BUSY_MINUTES,
       repairMinutes: REPAIR_MINUTES,
@@ -615,7 +630,7 @@ function buildReport(input: {
         coverage: input.metrics.overload.coverage,
       },
       acceptedShift: {
-        shiftIndex: CONTRACT_STAND.horizonShifts - 1,
+        shiftIndex: input.horizonShifts - 1,
         normHours: input.metrics.acceptedShift.value.normHours,
         coverage: input.metrics.acceptedShift.coverage,
       },

@@ -215,3 +215,36 @@ test('ёмкости стенда после прогона те же', () => {
     ],
   );
 });
+
+test('горизонт приходит аргументом, а не из константы', () => {
+  const short = runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts: 5 });
+  const long = runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts: 12 });
+  assert.equal(short.report.shifts.length, 5);
+  assert.equal(long.report.shifts.length, 12);
+  assert.equal(short.report.parameters.horizonShifts, 5);
+  assert.equal(short.report.acceptedByShift.at(-1)?.index, 4);
+  assert.equal(CONTRACT_STAND.horizonShifts, 12);
+});
+
+test('без аргумента горизонт равен стенду', () => {
+  const noArg = runStand({ seed: SEED, level: 'clean', overlay: 'none' });
+  const withArg = runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts: CONTRACT_STAND.horizonShifts });
+  assert.equal(noArg.reportJson, withArg.reportJson);
+});
+
+test('горизонт вне диапазона стенда отвергается', () => {
+  for (const horizonShifts of [0, -1, 2.5, CONTRACT_STAND.horizonShiftsMax + 1]) {
+    assert.throws(
+      () => runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts }),
+      /Горизонт прогона/,
+      `горизонт ${horizonShifts} должен быть отвергнут`,
+    );
+  }
+});
+
+test('префикс отчёта не зависит от горизонта', () => {
+  const short = runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts: 5 });
+  const long = runStand({ seed: SEED, level: 'clean', overlay: 'none', horizonShifts: 12 });
+  assert.deepEqual(short.report.shifts, long.report.shifts.slice(0, 5));
+  assert.deepEqual(short.report.acceptedByShift, long.report.acceptedByShift.slice(0, 5));
+});

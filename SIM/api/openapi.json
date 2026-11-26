@@ -1,0 +1,1913 @@
+{
+  "x_generated": true,
+  "x-generated-by": "node --experimental-strip-types api/schema.ts",
+  "x-fixture": {
+    "seed": 42,
+    "level": "clean",
+    "overlay": "none"
+  },
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Симулятор: контракт API",
+    "version": "v1",
+    "description": "Схемы выведены из фактических ответов сервера на фиксированном прогоне. Ручная правка файла запрещена: изменение типа в ядре обязано менять описание."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3400"
+    }
+  ],
+  "paths": {
+    "/v1/sessions": {
+      "post": {
+        "summary": "Создать сессию",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "seed",
+                  "level",
+                  "overlay"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "seed": {
+                    "type": "integer"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "clean",
+                      "late",
+                      "paper",
+                      "empty"
+                    ]
+                  },
+                  "overlay": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "urgent",
+                      "breakdown",
+                      "scrap"
+                    ]
+                  },
+                  "horizonShifts": {
+                    "type": "integer",
+                    "minimum": 10,
+                    "maximum": 15
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Сессия создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело отклонено",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}": {
+      "get": {
+        "summary": "Срез свода без состояния цеха",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Свод",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Сессия не найдена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/shop": {
+      "get": {
+        "summary": "Срез цеха, только по явному запросу",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Слой shop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/roles": {
+      "get": {
+        "summary": "Записи ролей, слой roles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Слой roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/decisions": {
+      "post": {
+        "summary": "Решение о приоритете, действует вперёд",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Решение записано",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Момент применения в прошлом",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/advance": {
+      "post": {
+        "summary": "Шаг на следующую смену",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Смена закрыта, события возвращены",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Горизонт исчерпан",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "level": {
+            "type": "string"
+          },
+          "overlay": {
+            "type": "string"
+          },
+          "horizonShifts": {
+            "type": "integer"
+          },
+          "currentShift": {
+            "type": "integer"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {}
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "replayable": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "layer": {
+                "type": "string"
+              },
+              "shift": {
+                "type": "integer"
+              },
+              "metrics": {
+                "type": "object",
+                "properties": {
+                  "portfolio": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "openCount": {
+                            "type": "integer"
+                          },
+                          "remainderNormHours": {
+                            "type": "integer"
+                          },
+                          "ordersWithoutNorm": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "openCount",
+                          "ordersWithoutNorm",
+                          "remainderNormHours"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "overload": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "areas": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "areaId": {
+                                  "type": "string"
+                                },
+                                "areaName": {
+                                  "type": "string"
+                                },
+                                "load": {
+                                  "type": "integer"
+                                },
+                                "overloaded": {
+                                  "type": "boolean"
+                                },
+                                "queueUnit": {
+                                  "type": "string"
+                                },
+                                "queueAmount": {
+                                  "type": "integer"
+                                },
+                                "problem": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "areaId",
+                                "areaName",
+                                "load",
+                                "overloaded",
+                                "problem",
+                                "queueAmount",
+                                "queueUnit"
+                              ]
+                            }
+                          },
+                          "overloadedCount": {
+                            "type": "integer"
+                          },
+                          "queueByUnit": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "amount",
+                                "unit"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "areas",
+                          "overloadedCount",
+                          "queueByUnit"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "acceptedShift": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "normHours": {
+                            "type": "integer"
+                          },
+                          "masterCloses": {
+                            "type": "integer"
+                          },
+                          "workerCloses": {
+                            "type": "integer"
+                          },
+                          "duplicateFacts": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "duplicateFacts",
+                          "masterCloses",
+                          "normHours",
+                          "workerCloses"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "number"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "scheduleRisk": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "overdue": {
+                            "type": "integer"
+                          },
+                          "onTime": {
+                            "type": "integer"
+                          },
+                          "unevaluated": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "onTime",
+                          "overdue",
+                          "unevaluated"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  }
+                },
+                "required": [
+                  "acceptedShift",
+                  "overload",
+                  "portfolio",
+                  "scheduleRisk"
+                ]
+              },
+              "reliability": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "coverage": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "coverage",
+                    "id"
+                  ]
+                }
+              },
+              "areas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "areaId": {
+                      "type": "string"
+                    },
+                    "areaName": {
+                      "type": "string"
+                    },
+                    "capacity": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    },
+                    "plan": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    },
+                    "queue": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "areaId",
+                    "areaName",
+                    "capacity",
+                    "plan",
+                    "queue"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "areas",
+              "layer",
+              "metrics",
+              "reliability",
+              "shift"
+            ]
+          },
+          "decisionJournal": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "apiVersion",
+          "createdAt",
+          "currentShift",
+          "decisionJournal",
+          "decisions",
+          "horizonShifts",
+          "id",
+          "level",
+          "overlay",
+          "replayable",
+          "seed",
+          "summary"
+        ]
+      },
+      "AdvanceResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "currentShift": {
+            "type": "integer"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "layer": {
+                "type": "string"
+              },
+              "shift": {
+                "type": "integer"
+              },
+              "metrics": {
+                "type": "object",
+                "properties": {
+                  "portfolio": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "openCount": {
+                            "type": "integer"
+                          },
+                          "remainderNormHours": {
+                            "type": "integer"
+                          },
+                          "ordersWithoutNorm": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "openCount",
+                          "ordersWithoutNorm",
+                          "remainderNormHours"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "overload": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "areas": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "areaId": {
+                                  "type": "string"
+                                },
+                                "areaName": {
+                                  "type": "string"
+                                },
+                                "load": {
+                                  "type": "integer"
+                                },
+                                "overloaded": {
+                                  "type": "boolean"
+                                },
+                                "queueUnit": {
+                                  "type": "string"
+                                },
+                                "queueAmount": {
+                                  "type": "integer"
+                                },
+                                "problem": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "areaId",
+                                "areaName",
+                                "load",
+                                "overloaded",
+                                "problem",
+                                "queueAmount",
+                                "queueUnit"
+                              ]
+                            }
+                          },
+                          "overloadedCount": {
+                            "type": "integer"
+                          },
+                          "queueByUnit": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "amount",
+                                "unit"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "areas",
+                          "overloadedCount",
+                          "queueByUnit"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "acceptedShift": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "normHours": {
+                            "type": "integer"
+                          },
+                          "masterCloses": {
+                            "type": "integer"
+                          },
+                          "workerCloses": {
+                            "type": "integer"
+                          },
+                          "duplicateFacts": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "duplicateFacts",
+                          "masterCloses",
+                          "normHours",
+                          "workerCloses"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "number"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  },
+                  "scheduleRisk": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "overdue": {
+                            "type": "integer"
+                          },
+                          "onTime": {
+                            "type": "integer"
+                          },
+                          "unevaluated": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "onTime",
+                          "overdue",
+                          "unevaluated"
+                        ]
+                      },
+                      "coverage": {
+                        "type": "integer"
+                      },
+                      "reads": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "coverage",
+                      "id",
+                      "reads",
+                      "value"
+                    ]
+                  }
+                },
+                "required": [
+                  "acceptedShift",
+                  "overload",
+                  "portfolio",
+                  "scheduleRisk"
+                ]
+              },
+              "reliability": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "coverage": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "coverage",
+                    "id"
+                  ]
+                }
+              },
+              "areas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "areaId": {
+                      "type": "string"
+                    },
+                    "areaName": {
+                      "type": "string"
+                    },
+                    "capacity": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    },
+                    "plan": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    },
+                    "queue": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "areaId",
+                    "areaName",
+                    "capacity",
+                    "plan",
+                    "queue"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "areas",
+              "layer",
+              "metrics",
+              "reliability",
+              "shift"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "integer"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "payload": {
+                  "type": "object",
+                  "properties": {
+                    "shift": {
+                      "type": "integer"
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "layer": {
+                          "type": "string"
+                        },
+                        "shift": {
+                          "type": "integer"
+                        },
+                        "metrics": {
+                          "type": "object",
+                          "properties": {
+                            "portfolio": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "object",
+                                  "properties": {
+                                    "openCount": {
+                                      "type": "integer"
+                                    },
+                                    "remainderNormHours": {
+                                      "type": "integer"
+                                    },
+                                    "ordersWithoutNorm": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "openCount",
+                                    "ordersWithoutNorm",
+                                    "remainderNormHours"
+                                  ]
+                                },
+                                "coverage": {
+                                  "type": "integer"
+                                },
+                                "reads": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "coverage",
+                                "id",
+                                "reads",
+                                "value"
+                              ]
+                            },
+                            "overload": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "object",
+                                  "properties": {
+                                    "areas": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "areaId": {
+                                            "type": "string"
+                                          },
+                                          "areaName": {
+                                            "type": "string"
+                                          },
+                                          "load": {
+                                            "type": "integer"
+                                          },
+                                          "overloaded": {
+                                            "type": "boolean"
+                                          },
+                                          "queueUnit": {
+                                            "type": "string"
+                                          },
+                                          "queueAmount": {
+                                            "type": "integer"
+                                          },
+                                          "problem": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "areaId",
+                                          "areaName",
+                                          "load",
+                                          "overloaded",
+                                          "problem",
+                                          "queueAmount",
+                                          "queueUnit"
+                                        ]
+                                      }
+                                    },
+                                    "overloadedCount": {
+                                      "type": "integer"
+                                    },
+                                    "queueByUnit": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "unit": {
+                                            "type": "string"
+                                          },
+                                          "amount": {
+                                            "type": "integer"
+                                          }
+                                        },
+                                        "required": [
+                                          "amount",
+                                          "unit"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "areas",
+                                    "overloadedCount",
+                                    "queueByUnit"
+                                  ]
+                                },
+                                "coverage": {
+                                  "type": "integer"
+                                },
+                                "reads": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "coverage",
+                                "id",
+                                "reads",
+                                "value"
+                              ]
+                            },
+                            "acceptedShift": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "object",
+                                  "properties": {
+                                    "normHours": {
+                                      "type": "integer"
+                                    },
+                                    "masterCloses": {
+                                      "type": "integer"
+                                    },
+                                    "workerCloses": {
+                                      "type": "integer"
+                                    },
+                                    "duplicateFacts": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "duplicateFacts",
+                                    "masterCloses",
+                                    "normHours",
+                                    "workerCloses"
+                                  ]
+                                },
+                                "coverage": {
+                                  "type": "number"
+                                },
+                                "reads": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "coverage",
+                                "id",
+                                "reads",
+                                "value"
+                              ]
+                            },
+                            "scheduleRisk": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "object",
+                                  "properties": {
+                                    "overdue": {
+                                      "type": "integer"
+                                    },
+                                    "onTime": {
+                                      "type": "integer"
+                                    },
+                                    "unevaluated": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "onTime",
+                                    "overdue",
+                                    "unevaluated"
+                                  ]
+                                },
+                                "coverage": {
+                                  "type": "integer"
+                                },
+                                "reads": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "coverage",
+                                "id",
+                                "reads",
+                                "value"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "acceptedShift",
+                            "overload",
+                            "portfolio",
+                            "scheduleRisk"
+                          ]
+                        },
+                        "reliability": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "coverage": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "coverage",
+                              "id"
+                            ]
+                          }
+                        },
+                        "areas": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "areaId": {
+                                "type": "string"
+                              },
+                              "areaName": {
+                                "type": "string"
+                              },
+                              "capacity": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "amount",
+                                  "kind"
+                                ]
+                              },
+                              "plan": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "amount",
+                                  "kind"
+                                ]
+                              },
+                              "queue": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "amount",
+                                  "kind"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "areaId",
+                              "areaName",
+                              "capacity",
+                              "plan",
+                              "queue"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "areas",
+                        "layer",
+                        "metrics",
+                        "reliability",
+                        "shift"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "shift"
+                  ]
+                },
+                "seq": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "at",
+                "payload",
+                "seq",
+                "type"
+              ]
+            }
+          }
+        },
+        "required": [
+          "apiVersion",
+          "currentShift",
+          "events",
+          "summary"
+        ]
+      },
+      "ShopResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "reality": {
+            "type": "object",
+            "properties": {
+              "now": {
+                "type": "integer"
+              },
+              "areas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string"
+                        },
+                        "resourceKind": {
+                          "type": "string"
+                        },
+                        "schedule": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "role"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "evidenceNote": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "evidence",
+                    "evidenceNote",
+                    "id",
+                    "name",
+                    "role"
+                  ]
+                }
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "areaId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "chargePieces": {
+                      "type": "integer",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "areaId",
+                    "chargePieces",
+                    "id",
+                    "kind"
+                  ]
+                }
+              },
+              "batches": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "partId": {
+                      "type": "string"
+                    },
+                    "qty": {
+                      "type": "integer"
+                    },
+                    "parentId": {
+                      "type": "null",
+                      "nullable": true
+                    },
+                    "tearOff": {
+                      "type": "null",
+                      "nullable": true
+                    },
+                    "countsApart": {
+                      "type": "boolean"
+                    },
+                    "materialReady": {
+                      "type": "boolean"
+                    },
+                    "designDocReady": {
+                      "type": "boolean"
+                    },
+                    "operationIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "countsApart",
+                    "designDocReady",
+                    "id",
+                    "materialReady",
+                    "operationIds",
+                    "parentId",
+                    "partId",
+                    "qty",
+                    "tearOff"
+                  ]
+                }
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "areaId": {
+                      "type": "string"
+                    },
+                    "sequence": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "planned": {
+                      "type": "integer"
+                    },
+                    "done": {
+                      "type": "integer"
+                    },
+                    "scrap": {
+                      "type": "integer"
+                    },
+                    "effort": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "kind"
+                      ],
+                      "nullable": true
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "areaId",
+                    "batchId",
+                    "done",
+                    "effort",
+                    "id",
+                    "missing",
+                    "planned",
+                    "resourceId",
+                    "scrap",
+                    "sequence",
+                    "status"
+                  ]
+                }
+              },
+              "downtimes": {
+                "type": "array",
+                "items": {}
+              }
+            },
+            "required": [
+              "areas",
+              "batches",
+              "downtimes",
+              "now",
+              "operations",
+              "resources"
+            ]
+          },
+          "shift": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "layer",
+          "reality",
+          "shift"
+        ]
+      },
+      "RolesResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "shift": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "integer",
+                  "nullable": true
+                },
+                "status": {
+                  "type": "string"
+                },
+                "contractDue": {
+                  "type": "integer"
+                },
+                "orderId": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "norm": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "kind"
+                  ]
+                },
+                "trueTime": {
+                  "type": "integer"
+                },
+                "versionId": {
+                  "type": "string"
+                },
+                "calculatedDue": {
+                  "type": "integer"
+                },
+                "technology": {
+                  "type": "null",
+                  "nullable": true
+                },
+                "production": {
+                  "type": "null",
+                  "nullable": true
+                },
+                "control": {
+                  "type": "null",
+                  "nullable": true
+                },
+                "done": {
+                  "type": "integer"
+                },
+                "scrap": {
+                  "type": "integer"
+                },
+                "areaName": {
+                  "type": "string"
+                },
+                "capacity": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "kind"
+                  ]
+                },
+                "plan": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "kind"
+                  ]
+                },
+                "queue": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "at",
+                "kind",
+                "ref",
+                "role"
+              ]
+            }
+          }
+        },
+        "required": [
+          "apiVersion",
+          "layer",
+          "records",
+          "shift"
+        ]
+      },
+      "DecisionResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "batchId": {
+                "type": "string"
+              },
+              "rank": {
+                "type": "integer"
+              },
+              "appliedAt": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "appliedAt",
+              "batchId",
+              "rank",
+              "type"
+            ]
+          },
+          "journal": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "integer"
+              },
+              "action": {
+                "type": "string"
+              },
+              "basisMetric": {
+                "type": "string"
+              },
+              "basisValue": {
+                "type": "string"
+              },
+              "coverage": {
+                "type": "integer"
+              },
+              "consequence": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "at",
+              "basisMetric",
+              "basisValue",
+              "consequence",
+              "coverage"
+            ]
+          },
+          "event": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "batchId": {
+                    "type": "string"
+                  },
+                  "rank": {
+                    "type": "integer"
+                  },
+                  "appliedAt": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "appliedAt",
+                  "batchId",
+                  "rank",
+                  "type"
+                ]
+              },
+              "seq": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "at",
+              "payload",
+              "seq",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "apiVersion",
+          "decision",
+          "event",
+          "journal"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "error"
+        ]
+      },
+      "UnknownVersionResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "apiVersion",
+          "error",
+          "supported"
+        ]
+      },
+      "EventTypes": {
+        "type": "string",
+        "enum": [
+          "shift-started",
+          "shift-completed",
+          "metrics-updated",
+          "decision-applied",
+          "session-finished"
+        ]
+      }
+    }
+  }
+}
