@@ -136,6 +136,25 @@ async function main(): Promise<void> {
     record('ErrorResponse', { apiVersion: 'v1', error: 'сообщение' });
     record('UnknownVersionResponse', { apiVersion: 'v1', error: 'unknown-api-version', supported: ['v1'] });
 
+    // Срез цеха с помехой: на clean/none простоев нет, и `downtimes` описался бы
+    // как unknown[]. Экран цеха обязан показывать простой, значит он должен быть в схеме.
+    const broken = await app.inject({
+      method: 'POST',
+      url: pathV1('/sessions'),
+      payload: { seed: SEED, level: 'clean', overlay: 'breakdown' },
+    });
+    const brokenId = (broken.json() as { id: string }).id;
+    record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${brokenId}/shop`) })).json());
+    // Уровень empty: у партий есть пропуски (material, kd), их надо описать.
+    const empty = await app.inject({
+      method: 'POST',
+      url: pathV1('/sessions'),
+      payload: { seed: SEED, level: 'empty', overlay: 'none' },
+    });
+    const emptyId = (empty.json() as { id: string }).id;
+    record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${emptyId}/shop`) })).json());
+    record('SessionResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${emptyId}`) })).json());
+
     const openapi = {
       x_generated: true,
       'x-generated-by': 'node --experimental-strip-types api/schema.ts',

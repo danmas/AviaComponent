@@ -1,0 +1,282 @@
+/**
+ * Язык бланка: тушь вместо цвета. Плотность линии несёт достоверность,
+ * а не оценку. Никаких красного и зелёного.
+ */
+:root {
+  --paper: #f4f1e8;
+  --paper-edge: #e4dfd0;
+  --ink: #1d1c18;
+  --ink-mid: #55524a;
+  --ink-faint: #9c988a;
+  --rule: #cfc9b8;
+  --stamp: #6b5f45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper-edge);
+  color: var(--ink);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.sheet {
+  max-width: 1180px;
+  margin: 24px auto 64px;
+  padding: 32px 36px 48px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 0 1px 0 #fff inset, 0 8px 24px rgba(60, 50, 30, 0.08);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+}
+
+.sub {
+  margin: 4px 0 0;
+  color: var(--ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+button:disabled {
+  border-color: var(--ink-faint);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+button.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.counts {
+  display: flex;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mid);
+}
+
+.counts b {
+  color: var(--ink);
+}
+
+.route {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  margin: 20px 0 28px;
+  border-left: 1px solid var(--rule);
+}
+
+.area {
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 12px 14px;
+  min-height: 120px;
+}
+
+.area-idle {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(0, 0, 0, 0.02) 6px,
+    rgba(0, 0, 0, 0.02) 12px
+  );
+}
+
+.area h2 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.area-kind {
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  text-transform: none;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.down {
+  border: 1px dashed var(--stamp);
+  padding: 4px 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.group {
+  margin-bottom: 8px;
+}
+
+.group-title {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+
+/* Тушь: плотность линии несёт вес числа, а не оценку. */
+.ink-full {
+  opacity: 1;
+}
+
+.ink-dashed .op-batch {
+  opacity: 0.82;
+}
+
+.ink-dashed {
+  border-bottom: 1px dashed var(--rule);
+}
+
+.ink-faint {
+  opacity: 0.45;
+}
+
+.op-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.op-batch {
+  font-weight: 600;
+}
+
+.op-resource,
+.op-status,
+.op-count {
+  color: var(--ink-mid);
+  font-size: 12px;
+}
+
+.op-status {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.op-reason {
+  grid-column: 1 / -1;
+  color: var(--stamp);
+  font-size: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--ink);
+  padding: 6px 8px 4px 0;
+  font-weight: normal;
+}
+
+td {
+  padding: 5px 8px 5px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+td.reason {
+  color: var(--stamp);
+  font-size: 12px;
+}
+
+.tracks,
+.movement {
+  margin-top: 28px;
+}
+
+.movement {
+  border-top: 2px solid var(--ink);
+  padding-top: 14px;
+}
+
+.error {
+  border: 1px solid var(--stamp);
+  color: var(--stamp);
+  padding: 8px 10px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.hint {
+  color: var(--ink-mid);
+  font-size: 13px;
+}
+
+code {
+  font-family: 'Consolas', monospace;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+}

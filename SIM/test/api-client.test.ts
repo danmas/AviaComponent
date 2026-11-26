@@ -82,6 +82,36 @@ test('клиент продвигает смену и получает собы�
   });
 });
 
+test('advance не шлёт content-type без тела', async () => {
+  // Регрессия: клиент ставил application/json на POST без тела, и Fastify
+  // отвечал 400 «Body cannot be empty». Смену нельзя было продвинуть вообще.
+  await withClient(async (client) => {
+    const created = await client.createSession({ seed: 42, level: 'clean', overlay: 'none' });
+    for (let step = 1; step <= 3; step += 1) {
+      const advanced = await client.advance(created.id);
+      assert.equal(advanced.currentShift, step, `шаг ${step} не прошёл`);
+    }
+    const shop = await client.shop(created.id, 3);
+    assert.equal(shop.shift, 3);
+    assert.equal(shop.reality.now, 2880, 'смена 3 — минута 2880');
+  });
+});
+
+test('прошлый срез цеха доступен после шага', async () => {
+  await withClient(async (client) => {
+    const created = await client.createSession({ seed: 42, level: 'clean', overlay: 'none' });
+    for (let step = 0; step < 3; step += 1) {
+      await client.advance(created.id);
+    }
+    const now = await client.shop(created.id, 3);
+    const before = await client.shop(created.id, 2);
+    assert.equal(now.shift, 3);
+    assert.equal(before.shift, 2);
+    // Прошлый срез не переписан текущим: у них разные минуты.
+    assert.notEqual(now.reality.now, before.reality.now);
+  });
+});
+
 test('клиент строит адрес потока с версией и номером', async () => {
   await withClient(async (client) => {
     const created = await client.createSession({ seed: 42, level: 'clean', overlay: 'none' });

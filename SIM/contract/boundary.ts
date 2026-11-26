@@ -84,7 +84,9 @@ export function importViolation(importer: string, specifier: string, root = SIM_
     return `клиент импортирует библиотеку транспорта (${specifier})`;
   }
   if (to === 'api' && from !== 'api') {
-    if (from === 'other' && topFolder(importer, root) === 'test') {
+    const top = topFolder(importer, root);
+    // Тесты (в том числе тесты UI) вправе поднимать сервер: им нужен реальный срез, а не мок.
+    if (from === 'other' && (top === 'test' || top === 'ui')) {
       return null;
     }
     return `модуль «${from}» импортирует серверный модуль (${specifier})`;

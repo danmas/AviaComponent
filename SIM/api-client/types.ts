@@ -325,7 +325,13 @@ export type ShopResponse = {
       } | null;
       readonly resourceId: string | null;
     }[];
-    readonly downtimes: readonly unknown[];
+    readonly downtimes: readonly {
+      readonly id: string;
+      readonly resourceId: string;
+      readonly from: number;
+      readonly until: number;
+      readonly reason: string;
+    }[];
   };
   readonly shift: number;
 };

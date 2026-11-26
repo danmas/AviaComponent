@@ -112,9 +112,12 @@ export function createClient(options: ClientOptions): Client {
   }
 
   async function call<T>(path: string, init?: { method?: string; body?: string }): Promise<T> {
+    // Content-Type ставится только когда есть тело: Fastify отвергает запрос
+    // с application/json и пустым телом (POST advance, POST без параметров).
+    const headers: Record<string, string> = init?.body === undefined ? {} : { 'Content-Type': 'application/json' };
     const response = await send(path, {
       ...(init?.method === undefined ? {} : { method: init.method }),
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       ...(init?.body === undefined ? {} : { body: init.body }),
     });
     const text = await response.text();
