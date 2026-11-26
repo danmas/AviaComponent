@@ -283,7 +283,29 @@
           },
           "decisions": {
             "type": "array",
-            "items": {}
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "batchId": {
+                  "type": "string"
+                },
+                "rank": {
+                  "type": "integer"
+                },
+                "appliedAt": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "appliedAt",
+                "batchId",
+                "rank",
+                "type"
+              ]
+            }
           },
           "createdAt": {
             "type": "string"
@@ -628,7 +650,37 @@
           },
           "decisionJournal": {
             "type": "array",
-            "items": {}
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "integer"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "basisMetric": {
+                  "type": "string"
+                },
+                "basisValue": {
+                  "type": "string"
+                },
+                "coverage": {
+                  "type": "integer"
+                },
+                "consequence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "at",
+                "basisMetric",
+                "basisValue",
+                "consequence",
+                "coverage"
+              ]
+            }
           }
         },
         "required": [

@@ -9,7 +9,12 @@ export type SessionResponse = {
   readonly overlay: string;
   readonly horizonShifts: number;
   readonly currentShift: number;
-  readonly decisions: readonly unknown[];
+  readonly decisions: readonly {
+    readonly type: string;
+    readonly batchId: string;
+    readonly rank: number;
+    readonly appliedAt: number;
+  }[];
   readonly createdAt: string;
   readonly replayable: boolean;
   readonly summary: {
@@ -90,7 +95,14 @@ export type SessionResponse = {
       };
     }[];
   };
-  readonly decisionJournal: readonly unknown[];
+  readonly decisionJournal: readonly {
+    readonly at: number;
+    readonly action: string;
+    readonly basisMetric: string;
+    readonly basisValue: string;
+    readonly coverage: number;
+    readonly consequence: string;
+  }[];
 };
 
 /** Схема `AdvanceResponse` из openapi.json. */

@@ -118,11 +118,21 @@ async function main(): Promise<void> {
       record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${id}/shop`) })).json());
       record('RolesResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${id}/roles`) })).json());
     }
-    record('DecisionResponse', (await app.inject({
+    const decided = await app.inject({
       method: 'POST',
       url: pathV1(`/sessions/${id}/decisions`),
       payload: { type: 'priority', batchId: 'batch-3', rank: 0 },
-    })).json());
+    });
+    record('DecisionResponse', decided.json());
+    // Срез после решения: иначе `decisions` и `decisionJournal` остаются пустыми
+    // массивами и описываются как unknown[], а клиенту нужны их поля.
+    record('SessionResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${id}`) })).json());
+    const rejected = await app.inject({
+      method: 'POST',
+      url: pathV1(`/sessions/${id}/decisions`),
+      payload: { type: 'priority', batchId: 'batch-3', rank: 0, appliedAt: 0 },
+    });
+    record('ErrorResponse', rejected.json());
     record('ErrorResponse', { apiVersion: 'v1', error: 'сообщение' });
     record('UnknownVersionResponse', { apiVersion: 'v1', error: 'unknown-api-version', supported: ['v1'] });
 
