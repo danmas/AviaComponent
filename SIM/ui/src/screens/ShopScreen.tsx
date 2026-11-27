@@ -6,50 +6,30 @@
  * Начальное состояние берётся из адреса (`?shift=3&mode=movement`), чтобы
  * снимок экрана был воспроизводим: одна ссылка — одно состояние.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ShopResponse } from '../../../api-client/types.ts';
-import { createClient } from '../../../api-client/client.ts';
+import { client } from '../lib/api.ts';
 import { pendingOrders, type PendingOrder } from '../lib/orders.ts';
 import { areasOf, arrivalText, chargeText, movementBetween, progressText, statusCounts, tracksOf } from '../lib/shop.ts';
 import { downtimeText, missingLine, STATUS_TEXT } from '../lib/missing.ts';
-import { screenParams } from '../lib/params.ts';
+import type { ScreenParams } from '../lib/params.ts';
 import { flowOf, hoursOf, waitMinutes } from '../lib/flow.ts';
+import type { PlayState, ScreenId } from '../lib/session.ts';
 import { waitingOf, waitingText } from '../lib/waiting.ts';
 import { RouteFlow } from './RouteFlow.tsx';
-
-// В сборке экран и API живут на одном хосте: адрес берётся из страницы.
-// В разработке Vite на 5173, а сервер на 3400 — тогда задаётся VITE_API_BASE.
-const API_BASE = import.meta.env['VITE_API_BASE'] ?? (globalThis.location?.origin ?? 'http://127.0.0.1:3400');
-const client = createClient({ baseUrl: API_BASE });
+import { ScreenTabs } from './ScreenTabs.tsx';
 
 export type Shop = ShopResponse['reality'];
 
-interface ScreenState {
-  readonly sessionId: string | null;
-  readonly shift: number;
+interface LocalState {
   readonly shop: Shop | null;
   readonly orders: readonly PendingOrder[];
-  readonly shiftCount: number;
   readonly error: string | null;
   readonly previous: Shop | null;
   readonly loading: boolean;
   readonly mode: 'now' | 'movement';
 }
-
-const START = screenParams();
-
-const EMPTY: ScreenState = {
-  sessionId: null,
-  shift: 0,
-  shop: null,
-  orders: [],
-  shiftCount: 12,
-  error: null,
-  previous: null,
-  loading: true,
-  mode: START.mode,
-};
 
 function minutesText(minutes: number): string {
   const shift = Math.floor(minutes / 720);
@@ -86,136 +66,112 @@ async function ordersAt(sessionId: string, shift: number): Promise<readonly Pend
   return pendingOrders(roles);
 }
 
-/** Доводит сессию до нужной смены шагами: срез существует только для пройденных смен. */
-async function reachShift(sessionId: string, target: number): Promise<number> {
-  let current = 0;
-  for (let step = 0; step < target; step += 1) {
-    const advanced = await client.advance(sessionId);
-    current = advanced.currentShift;
-  }
-  return current;
-}
-
-export function ShopScreen(): JSX.Element {
-  const [state, setState] = useState<ScreenState>(EMPTY);
+export function ShopScreen(props: {
+  readonly play: PlayState;
+  readonly params: ScreenParams;
+  readonly onScreen: (screen: ScreenId) => void;
+  readonly onStep: () => Promise<void>;
+  readonly onView: (shift: number) => void;
+}): JSX.Element {
+  const { play, params } = props;
+  const [state, setState] = useState<LocalState>({
+    shop: null,
+    orders: [],
+    error: null,
+    previous: null,
+    loading: true,
+    mode: params.mode,
+  });
+  const nav = useRef<'sync' | 'step' | 'past'>('sync');
+  const lastShop = useRef<Shop | null>(null);
 
   useEffect(() => {
     let alive = true;
+    const kind = nav.current;
+    nav.current = 'sync';
+    const carried = lastShop.current;
+    setState((current) => ({ ...current, loading: true, error: null }));
     void (async () => {
       try {
-        const created = await client.createSession({
-          seed: START.seed,
-          level: START.level,
-          overlay: START.overlay,
-        });
-        const reached = await reachShift(created.id, START.shift);
-        const [now, before, orders] = START.mode === 'movement' && reached > 0
-          ? await Promise.all([
-              client.shop(created.id, reached),
-              client.shop(created.id, reached - 1),
-              ordersAt(created.id, reached),
-            ])
-          : [await client.shop(created.id, reached), null, await ordersAt(created.id, reached)] as const;
+        const now = await client.shop(play.sessionId, play.viewShift);
+        const orders = await ordersAt(play.sessionId, play.viewShift);
+        let previous: Shop | null = null;
+        if (kind === 'step' && state.mode === 'movement') {
+          previous = carried;
+        } else if (kind === 'past') {
+          previous = null;
+        } else if (state.mode === 'movement' && play.viewShift > 0) {
+          const before = await client.shop(play.sessionId, play.viewShift - 1);
+          previous = before.reality;
+        }
         if (!alive) {
           return;
         }
-        setState({
-          sessionId: created.id,
-          shift: reached,
+        lastShop.current = now.reality;
+        setState((current) => ({
+          ...current,
           shop: now.reality,
           orders,
-          shiftCount: created.horizonShifts,
-          error: null,
-          previous: before === null ? null : before.reality,
+          previous,
           loading: false,
-          mode: START.mode,
-        });
+          error: null,
+        }));
       } catch (error: unknown) {
         if (alive) {
-          setState({
-            ...EMPTY,
+          setState((current) => ({
+            ...current,
             loading: false,
             error: error instanceof Error ? error.message : 'Сервер недоступен',
-          });
+          }));
         }
       }
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [play.sessionId, play.viewShift, state.mode]);
 
   async function step(): Promise<void> {
-    if (state.sessionId === null || state.shop === null) {
-      return;
-    }
+    nav.current = 'step';
     try {
-      const advanced = await client.advance(state.sessionId);
-      const [shop, orders] = await Promise.all([
-        client.shop(state.sessionId),
-        ordersAt(state.sessionId, advanced.currentShift),
-      ]);
-      setState({
-        ...state,
-        shift: advanced.currentShift,
-        shop: shop.reality,
-        orders,
-        previous: state.mode === 'movement' ? state.shop : null,
-        error: null,
-      });
+      await props.onStep();
     } catch (error: unknown) {
-      setState({ ...state, error: error instanceof Error ? error.message : 'Шаг смены отклонён' });
+      nav.current = 'sync';
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Шаг смены отклонён',
+      }));
     }
   }
 
-  async function loadPast(target: number): Promise<void> {
-    if (state.sessionId === null) {
-      return;
-    }
-    try {
-      const [shop, orders] = await Promise.all([
-        client.shop(state.sessionId, target),
-        ordersAt(state.sessionId, target),
-      ]);
-      setState({ ...state, shop: shop.reality, orders, shift: target, previous: null, error: null });
-    } catch (error: unknown) {
-      setState({ ...state, error: error instanceof Error ? error.message : `Срез смены ${target} не выдан` });
-    }
+  function loadPast(): void {
+    nav.current = 'past';
+    props.onView(play.viewShift - 1);
   }
 
   async function choose(orderId: string, type: 'accept-order' | 'defer-order'): Promise<void> {
-    if (state.sessionId === null) {
-      return;
-    }
     try {
-      await client.decide(state.sessionId, { type, orderId });
+      await client.decide(play.sessionId, { type, orderId });
       const [shop, orders] = await Promise.all([
-        client.shop(state.sessionId, state.shift),
-        ordersAt(state.sessionId, state.shift),
+        client.shop(play.sessionId, play.viewShift),
+        ordersAt(play.sessionId, play.viewShift),
       ]);
-      setState({ ...state, shop: shop.reality, orders, error: null });
+      lastShop.current = shop.reality;
+      setState((current) => ({ ...current, shop: shop.reality, orders, error: null }));
     } catch (error: unknown) {
-      setState({ ...state, error: error instanceof Error ? error.message : 'Решение отклонено' });
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Решение отклонено',
+      }));
     }
   }
 
   function toggleMode(): void {
-    const next = state.mode === 'now' ? 'movement' : 'now';
-    setState({
-      ...state,
-      mode: next,
-      previous: next === 'movement' && state.shift > 0 && state.sessionId !== null ? state.previous : null,
-    });
-    if (next === 'movement' && state.previous === null && state.sessionId !== null && state.shift > 0) {
-      void (async () => {
-        try {
-          const before = await client.shop(state.sessionId as string, state.shift - 1);
-          setState((current) => ({ ...current, previous: before.reality }));
-        } catch {
-          // Прошлый срез недоступен — блок движения покажет подсказку.
-        }
-      })();
-    }
+    setState((current) => ({
+      ...current,
+      mode: current.mode === 'now' ? 'movement' : 'now',
+      previous: current.mode === 'now' ? current.previous : null,
+    }));
   }
 
   const areas = useMemo(() => (state.shop === null ? [] : areasOf(state.shop)), [state.shop]);
@@ -227,47 +183,37 @@ export function ShopScreen(): JSX.Element {
   );
   const flow = useMemo(() => (state.shop === null ? null : flowOf(state.shop)), [state.shop]);
 
-  if (state.loading) {
-    return <div className="sheet">Считаем срез…</div>;
-  }
-
-  if (state.error !== null && state.shop === null) {
-    return (
-      <div className="sheet">
-        <h1>Цех недоступен</h1>
-        <p className="ink-faint">{state.error}</p>
-        <p className="hint">
-          Запустите сервер с источниками UI: <code>npm run api:ui</code> в каталоге <code>SIM</code>, порт 3400.
-        </p>
-      </div>
-    );
-  }
-
-  if (state.shop === null || counts === null) {
-    return <div className="sheet">Срез не получен.</div>;
-  }
+  const ready = state.shop !== null && counts !== null && !state.loading;
 
   return (
-    <div className="sheet" data-ready="true">
+    <div className="sheet" data-screen="shop" data-ready={ready ? 'true' : 'false'}>
       <header className="sheet-head">
         <div>
+          <ScreenTabs screen="shop" onScreen={props.onScreen} />
           <h1>Цех</h1>
           <p className="sub">
-            смена {state.shift} из {state.shiftCount - 1} · {minutesText(state.shop.now)}
+            смена {play.viewShift} из {play.shiftCount - 1}
+            {state.shop !== null ? ` · ${minutesText(state.shop.now)}` : ''}
           </p>
           <p className="sub">
-            уровень {START.level} · помеха {START.overlay} · seed {START.seed}
+            уровень {params.level} · помеха {params.overlay} · seed {params.seed}
           </p>
         </div>
         <div className="controls">
-          <button type="button" onClick={() => void step()} disabled={state.shift >= state.shiftCount - 1}>
+          <a
+            className="alt-link"
+            href={`http://127.0.0.1:8766/?shift=${play.viewShift}&level=${params.level}&overlay=${params.overlay}&seed=${params.seed}`}
+          >
+            холст
+          </a>
+          <button type="button" onClick={() => void step()} disabled={play.serverShift >= play.shiftCount - 1}>
             следующая смена
           </button>
           <button type="button" className={state.mode === 'movement' ? 'active' : ''} onClick={toggleMode}>
             {state.mode === 'movement' ? 'движение вкл' : 'движение'}
           </button>
-          {state.shift > 0 ? (
-            <button type="button" onClick={() => void loadPast(state.shift - 1)}>
+          {play.viewShift > 0 ? (
+            <button type="button" onClick={loadPast}>
               смена −1
             </button>
           ) : null}
@@ -275,7 +221,15 @@ export function ShopScreen(): JSX.Element {
       </header>
 
       {state.error !== null ? <p className="error">{state.error}</p> : null}
+      {!ready ? (
+        <p>
+          {state.error !== null && state.shop === null
+            ? 'Запустите сервер с источниками UI: npm run api:ui в каталоге SIM, порт 3400.'
+            : 'Считаем срез…'}
+        </p>
+      ) : null}
 
+      {ready && counts !== null && state.shop !== null ? <>
       <section className="counts">
         <span>не готово: <b>{counts['not-ready']}</b></span>
         <span>ждёт: <b>{counts['ready']}</b></span>
@@ -468,6 +422,7 @@ export function ShopScreen(): JSX.Element {
           )}
         </section>
       ) : null}
+      </> : null}
     </div>
   );
 }

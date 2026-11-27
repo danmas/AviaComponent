@@ -70,6 +70,20 @@ h2 {
   flex-wrap: wrap;
 }
 
+a.alt-link {
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  text-decoration: none;
+  align-self: center;
+}
+
+a.alt-link:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 button {
   font-family: inherit;
   font-size: 13px;
@@ -286,6 +300,101 @@ td.reason {
 .tracks,
 .movement {
   margin-top: 28px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.registry ul,
+.journal {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.registry li,
+.journal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.legend,
+.ink-faint {
+  color: var(--ink-faint);
+}
+
+.metric {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.metric-quiet {
+  color: var(--ink-mid);
+}
+
+.weight-full {
+  font-weight: 700;
+}
+
+.weight-plain {
+  font-weight: 400;
+}
+
+.weight-faded {
+  border-bottom: 1px dashed var(--ink);
+}
+
+.weight-outline {
+  color: transparent;
+  -webkit-text-stroke: 0.7px var(--ink);
+}
+
+.drop {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.price {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--ink);
+}
+
+.price-rule {
+  border-top: 1px solid var(--ink);
+  margin: 8px 0;
+}
+
+.priority-form {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.priority-form input {
+  display: block;
+  font: inherit;
+  width: 8em;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  padding: 4px 6px;
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.areas-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .movement {
