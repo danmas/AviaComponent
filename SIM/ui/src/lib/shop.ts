@@ -63,6 +63,17 @@ export function batchesOf(shop: Shop): readonly ShopBatch[] {
   return shop.batches;
 }
 
+/**
+ * Отметка партии, появившейся после старта. Стартовая (минута 0) не помечается:
+ * пустая строка, а не «новая · 0 мин».
+ */
+export function arrivalText(batch: { readonly appearedAt: number }): string {
+  if (batch.appearedAt <= 0) {
+    return '';
+  }
+  return `новая · ${batch.appearedAt} мин`;
+}
+
 export function operationView(shop: Shop, operation: ShopOperation): OperationView {
   const batch = shop.batches.find((item: ShopBatch) => item.id === operation.batchId);
   const area = shop.areas.find((item: ShopArea) => item.id === operation.areaId);

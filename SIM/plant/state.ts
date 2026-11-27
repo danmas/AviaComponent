@@ -37,6 +37,8 @@ export interface PlantBatch {
   readonly materialReady: boolean;
   readonly designDocReady: boolean;
   readonly operationIds: readonly string[];
+  /** Минута, на которой партия создана. У стартовых — ноль. Не подменяется нулём у новых. */
+  readonly appearedAt: number;
 }
 
 export interface PlantOperation {

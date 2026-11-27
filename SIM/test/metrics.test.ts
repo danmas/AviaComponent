@@ -164,3 +164,18 @@ test('сборка ловит импорт цеха из Системы и сл�
 test('ожидаемый объём покрытия не берётся из пустого прогона', () => {
   assert.throws(() => portfolio(emptyRecords(), 0));
 });
+
+test('неразобранный заказ не входит в числитель покрытия', () => {
+  const data = records();
+  const grown: SystemRecords = {
+    ...data,
+    orders: [...data.orders, { id: 'o-new', status: 'unparsed', contractDue: instant(50) }],
+    norms: [...data.norms, { orderId: 'o-new', operationId: null, norm: quantity('norm-hour', 6) }],
+  };
+  const book = portfolio(grown, 3);
+  assert.equal(book.value.openCount, 3);
+  assert.equal(book.value.ordersWithoutNorm, 1);
+  assert.equal(book.value.remainderNormHours, 6);
+  assert.equal(book.coverage, 1 / 3);
+  assert.ok(book.coverage <= 1);
+});

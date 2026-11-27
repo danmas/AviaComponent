@@ -6,15 +6,17 @@ import { assertStandInSpec, CONTRACT_STAND } from '../contract/stand.ts';
 import { inShift, instant, SHIFT_MINUTES, shiftWindow, type SimInstant } from '../contract/time.ts';
 import { quantity, type AnyQuantity, type UnitKind } from '../contract/units.ts';
 import { launchBatch } from '../plant/batch.ts';
-import { MACHINE_MTBF_BUSY_MINUTES, REPAIR_MINUTES, runShop, type PriorityOrder, type ShopCompletion, type ShopStart } from '../plant/engine.ts';
+import { MACHINE_MTBF_BUSY_MINUTES, REPAIR_MINUTES, runShop, type PriorityOrder, type ScheduledLaunch, type ShopCompletion, type ShopStart } from '../plant/engine.ts';
 import { occupationMinutes } from '../plant/occupation.ts';
 import { ROUTE, type RouteStep } from '../plant/stand.ts';
 import { addDowntime, createShop, type PlantState } from '../plant/state.ts';
+import { orderDecisionRecord, type DecisionRecord } from '../system/journal.ts';
 import { appendVersion, approveShift, type PlanVersion, type ShiftSnapshot } from '../system/plan.ts';
 import {
   acceptedShift,
   fourMetrics,
   type AcceptedShiftValue,
+  type MetricId,
   type MetricResult,
   type OverloadValue,
   type PortfolioValue,
@@ -96,6 +98,14 @@ export interface RunReport {
   };
 }
 
+/** Решение руководителя по поступившему заказу. В отчёт прогона не входит. */
+export interface OrderChoice {
+  readonly type: 'accept-order' | 'defer-order';
+  readonly orderId: string;
+  readonly at: number;
+  readonly basisMetric: MetricId;
+}
+
 export interface RunResult {
   readonly report: RunReport;
   readonly reportJson: string;
@@ -104,6 +114,8 @@ export interface RunResult {
   readonly snapshots: readonly ShiftSnapshot[];
   readonly versions: readonly PlanVersion[];
   readonly starts: readonly ShopStart[];
+  readonly decisionJournal: readonly DecisionRecord[];
+  readonly contractEvents: readonly unknown[];
 }
 
 function processingSteps(): readonly StepRef[] {
@@ -187,6 +199,8 @@ export function runStand(input: {
   readonly horizonShifts?: number;
   /** Решения о приоритете, действующие с момента appliedAt. */
   readonly priority?: readonly PriorityOrder[];
+  /** Принять или отложить заказ. Пусто — решает только признак каталога. */
+  readonly orderChoices?: readonly OrderChoice[];
 }): RunResult {
   assertStandInSpec();
   const horizon = input.horizonShifts ?? CONTRACT_STAND.horizonShifts;
@@ -195,24 +209,67 @@ export function runStand(input: {
   }
   const rule = LEVEL_RULES[input.level];
   const catalog = ordersFor(input.level, input.overlay);
+  const choices = input.orderChoices ?? [];
   const steps = processingSteps();
+  const horizonEnd = horizon * SHIFT_MINUTES;
   let contractEventCount = 0;
+  const contractEvents: unknown[] = [];
+
+  function launchMinuteOf(order: StandOrder): number | null {
+    if (order.acceptedByDefault) {
+      return order.arrivesAt;
+    }
+    let accepted: number | null = null;
+    for (const choice of choices) {
+      if (choice.orderId !== order.id || choice.type !== 'accept-order') {
+        continue;
+      }
+      if (accepted === null || choice.at < accepted) {
+        accepted = choice.at;
+      }
+    }
+    return accepted;
+  }
+
+  function takenBy(order: StandOrder, at: number): boolean {
+    const minute = launchMinuteOf(order);
+    return minute !== null && minute <= at;
+  }
+
+  for (const choice of choices) {
+    const order = catalog.find((item) => item.id === choice.orderId);
+    if (order === undefined) {
+      throw new Error(`Решение по неизвестному заказу «${choice.orderId}».`);
+    }
+    if (order.acceptedByDefault) {
+      throw new Error(`Заказ «${order.id}» уже принят каталогом.`);
+    }
+    if (choice.at < order.arrivesAt) {
+      throw new Error(`Заказ «${order.id}» ещё не поступил к минуте ${choice.at}.`);
+    }
+  }
 
   function accept(raw: unknown): void {
     parseEventV1(raw);
+    contractEvents.push(raw);
     contractEventCount += 1;
   }
 
   const orders: OrderRecord[] = [];
   const norms: NormRecord[] = [];
   for (const order of catalog) {
+    if (order.arrivesAt >= horizonEnd) {
+      continue;
+    }
+    const recordedAt = order.arrivesAt;
+    const launched = launchMinuteOf(order);
     accept({
       version: 1,
       type: 'order-registered',
       author: 'commercial',
       flow: 'into-system',
       orderId: order.id,
-      recordedAt: 0,
+      recordedAt,
     });
     accept({
       version: 1,
@@ -220,11 +277,11 @@ export function runStand(input: {
       author: 'technologist',
       flow: 'into-system',
       orderId: order.id,
-      recordedAt: 0,
+      recordedAt,
     });
     orders.push({
       id: order.id,
-      status: orderStatus(order),
+      status: launched !== null && launched < horizonEnd ? orderStatus(order) : 'unparsed',
       contractDue: order.contractDue === null ? null : instant(order.contractDue),
     });
     if (order.designDoc) {
@@ -234,7 +291,7 @@ export function runStand(input: {
         author: 'archivist',
         flow: 'into-system',
         orderId: order.id,
-        recordedAt: 0,
+        recordedAt,
       });
     }
     if (order.material) {
@@ -244,8 +301,8 @@ export function runStand(input: {
         author: 'storekeeper',
         flow: 'into-system',
         orderId: order.id,
-        trueTime: 0,
-        recordTime: 0,
+        trueTime: recordedAt,
+        recordTime: recordedAt,
       });
     }
     if (!order.norms) {
@@ -263,7 +320,7 @@ export function runStand(input: {
           orderId: order.id,
           operationId,
           normHours: OPERATION_NORM_HOURS,
-          recordedAt: 0,
+          recordedAt,
         });
         norms.push({ orderId: order.id, operationId, norm: quantity('norm-hour', OPERATION_NORM_HOURS) });
       }
@@ -272,16 +329,31 @@ export function runStand(input: {
 
   let shop = createShop();
   const dueByBatch = new Map<string, number | null>();
+  const launches: ScheduledLaunch[] = [];
   for (const order of catalog) {
+    if (order.arrivesAt >= horizonEnd) {
+      continue;
+    }
     for (const batchId of order.batchIds) {
-      shop = launchBatch(shop, {
+      dueByBatch.set(batchId, order.contractDue);
+    }
+    const atLaunch = launchMinuteOf(order);
+    if (atLaunch === null || atLaunch >= horizonEnd) {
+      continue;
+    }
+    for (const batchId of order.batchIds) {
+      const batch = {
         id: batchId,
         partId: 'part-1',
         qty: pieces(BATCH_PIECES),
         materialReady: order.material,
         designDocReady: order.designDoc,
-      });
-      dueByBatch.set(batchId, order.contractDue);
+      };
+      if (atLaunch === 0) {
+        shop = launchBatch(shop, batch);
+      } else {
+        launches.push({ at: atLaunch, due: order.contractDue, batch });
+      }
     }
   }
   if (input.overlay === 'breakdown') {
@@ -304,6 +376,7 @@ export function runStand(input: {
     controlEnabled: input.overlay === 'scrap',
     horizonShifts: horizon,
     ...(input.priority === undefined ? {} : { priority: input.priority }),
+    ...(launches.length === 0 ? {} : { launches }),
   });
 
   const batchOrder = new Map<string, string>();
@@ -381,6 +454,9 @@ export function runStand(input: {
   function knownQueue(at: number): QueueRow[] {
     const rows: QueueRow[] = [];
     for (const order of catalog) {
+      if (order.arrivesAt > at || !takenBy(order, at)) {
+        continue;
+      }
       if (!order.material || !order.designDoc || !order.norms) {
         continue;
       }
@@ -432,7 +508,7 @@ export function runStand(input: {
       id: `plan-shift-${index}`,
       createdAt: instant(at),
       reason: 'утверждение смены',
-      orderDue: catalog.map((order) => ({
+      orderDue: catalog.filter((order) => order.arrivesAt <= at).map((order) => ({
         orderId: order.id,
         calculatedDue: calculatedDue(order, at),
       })),
@@ -493,7 +569,7 @@ export function runStand(input: {
 
   const records: SystemRecords = { orders, norms, facts, areaLoads, planDates, cards };
   const levelArgs = {
-    orders: EXPECTED.orders,
+    orders: orders.length,
     areas: EXPECTED.loadAreas,
     shiftFacts: EXPECTED.marks,
   };
@@ -544,6 +620,15 @@ export function runStand(input: {
     reportJson = JSON.stringify(report);
   }
 
+  const decisionJournal = choices.map((choice) => orderDecisionRecord({
+    type: choice.type,
+    orderId: choice.orderId,
+    at: choice.at,
+    basisMetric: choice.basisMetric,
+    basisValue: JSON.stringify(metrics.portfolio.value),
+    coverage: metrics.portfolio.coverage,
+  }));
+
   return {
     report,
     reportJson,
@@ -552,6 +637,8 @@ export function runStand(input: {
     snapshots,
     versions: history,
     starts: shopRun.starts,
+    decisionJournal,
+    contractEvents,
   };
 }
 

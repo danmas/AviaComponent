@@ -3,7 +3,7 @@ import type { MasterDiscipline } from '../contract/discipline.ts';
 export const LEVEL_NAMES = ['clean', 'late', 'paper', 'empty'] as const;
 export type LevelName = (typeof LEVEL_NAMES)[number];
 
-export const OVERLAY_NAMES = ['none', 'urgent', 'breakdown', 'scrap'] as const;
+export const OVERLAY_NAMES = ['none', 'urgent', 'breakdown', 'scrap', 'incoming'] as const;
 export type OverlayName = (typeof OVERLAY_NAMES)[number];
 
 export interface LevelRule {
@@ -20,7 +20,13 @@ export const LEVEL_RULES: Record<LevelName, LevelRule> = {
   empty: { outsideShare: 0, miss: 'skip', discipline: 'immediate' },
 };
 
-/** Знаменатели покрытия. Не заменяются числом закрытий конкретного прогона. */
+/**
+ * Знаменатели стенда. Не заменяются числом закрытий конкретного прогона.
+ * В прогоне покрытие портфеля и риск сроков получают число заказов,
+ * уже поступивших на смену. Пока все приходят в ноль, это по-прежнему 4.
+ * Поле `expected.orders` отчёта остаётся размером стартового каталога.
+ * `marks` от прихода заказа не растёт.
+ */
 export const EXPECTED = {
   orders: 4,
   loadAreas: 6,

@@ -28,7 +28,7 @@ export interface NewBatch {
  * при первом же изменении правил.
  *
  * `now` — минута цеха, в которую ворота проверяются. Для операций, созданных
- * вместе с партией, это ноль; для остальных — текущая минута.
+ * вместе с партией, это минута появления партии; для остальных — текущая минута.
  */
 function gate(
   batch: Pick<PlantBatch, 'materialReady' | 'designDocReady'>,
@@ -92,6 +92,7 @@ export function launchBatch(state: PlantState, input: NewBatch): PlantState {
     materialReady: input.materialReady,
     designDocReady: input.designDocReady,
     operationIds: operations.map((operation) => operation.id),
+    appearedAt: state.now,
   };
   return {
     ...state,
@@ -154,6 +155,7 @@ export function tearOffBatch(
     materialReady: parent.materialReady,
     designDocReady: parent.designDocReady,
     operationIds: childOps.map((operation) => operation.id),
+    appearedAt: state.now,
   };
   const operations = state.operations.map((operation) => {
     if (operation.batchId !== parent.id || split.childCountsApart === false) {
@@ -324,6 +326,7 @@ export function recordDefect(state: PlantState, parentId: string, childId: strin
     materialReady: parent.materialReady,
     designDocReady: parent.designDocReady,
     operationIds: [],
+    appearedAt: state.now,
   };
   return { ...state, batches: [...state.batches, child] };
 }

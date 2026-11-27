@@ -52,7 +52,8 @@
                       "none",
                       "urgent",
                       "breakdown",
-                      "scrap"
+                      "scrap",
+                      "incoming"
                     ]
                   },
                   "horizonShifts": {
@@ -297,12 +298,13 @@
                 },
                 "appliedAt": {
                   "type": "integer"
+                },
+                "orderId": {
+                  "type": "string"
                 }
               },
               "required": [
                 "appliedAt",
-                "batchId",
-                "rank",
                 "type"
               ]
             }
@@ -1541,9 +1543,13 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "appearedAt": {
+                      "type": "integer"
                     }
                   },
                   "required": [
+                    "appearedAt",
                     "countsApart",
                     "designDocReady",
                     "id",
@@ -1858,12 +1864,13 @@
               },
               "appliedAt": {
                 "type": "integer"
+              },
+              "orderId": {
+                "type": "string"
               }
             },
             "required": [
               "appliedAt",
-              "batchId",
-              "rank",
               "type"
             ]
           },
@@ -1921,12 +1928,13 @@
                   },
                   "appliedAt": {
                     "type": "integer"
+                  },
+                  "orderId": {
+                    "type": "string"
                   }
                 },
                 "required": [
                   "appliedAt",
-                  "batchId",
-                  "rank",
                   "type"
                 ]
               },

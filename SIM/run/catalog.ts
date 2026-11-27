@@ -15,6 +15,13 @@ export interface StandOrder {
   readonly designDoc: boolean;
   readonly norms: boolean;
   readonly batchIds: readonly string[];
+  /** Минута, на которой заказ регистрируется. Не выводится из других полей. */
+  readonly arrivesAt: number;
+  /**
+   * Принят в момент поступления без отдельного решения.
+   * Задаётся каталогом. Из `arrivesAt === 0` не следует.
+   */
+  readonly acceptedByDefault: boolean;
 }
 
 const BASE_ORDERS: readonly StandOrder[] = [
@@ -25,6 +32,8 @@ const BASE_ORDERS: readonly StandOrder[] = [
     designDoc: true,
     norms: true,
     batchIds: ['batch-1', 'batch-2'],
+    arrivesAt: 0,
+    acceptedByDefault: true,
   },
   {
     id: 'order-2',
@@ -33,6 +42,8 @@ const BASE_ORDERS: readonly StandOrder[] = [
     designDoc: true,
     norms: true,
     batchIds: ['batch-3'],
+    arrivesAt: 0,
+    acceptedByDefault: true,
   },
   {
     id: 'order-3',
@@ -41,6 +52,8 @@ const BASE_ORDERS: readonly StandOrder[] = [
     designDoc: true,
     norms: true,
     batchIds: ['batch-4'],
+    arrivesAt: 0,
+    acceptedByDefault: true,
   },
   {
     id: 'order-4',
@@ -49,8 +62,25 @@ const BASE_ORDERS: readonly StandOrder[] = [
     designDoc: true,
     norms: true,
     batchIds: ['batch-5', 'batch-6'],
+    arrivesAt: 0,
+    acceptedByDefault: true,
   },
 ];
+
+/** Помеха incoming: смена 4, минута 2880. Срок — две смены от поступления. */
+export const INCOMING_ARRIVAL = 4 * SHIFT_MINUTES;
+export const INCOMING_DUE = INCOMING_ARRIVAL + 2 * SHIFT_MINUTES;
+
+const INCOMING_ORDER: StandOrder = {
+  id: 'order-5',
+  contractDue: INCOMING_DUE,
+  material: true,
+  designDoc: true,
+  norms: true,
+  batchIds: ['batch-7'],
+  arrivesAt: INCOMING_ARRIVAL,
+  acceptedByDefault: false,
+};
 
 /** Уровень и помеха возвращают новый каталог. Базовая таблица не меняется. */
 export function ordersFor(level: LevelName, overlay: OverlayName): readonly StandOrder[] {
@@ -66,5 +96,5 @@ export function ordersFor(level: LevelName, overlay: OverlayName): readonly Stan
       next = { ...next, contractDue: URGENT_DUE_MINUTE };
     }
     return next;
-  });
+  }).concat(overlay === 'incoming' ? [INCOMING_ORDER] : []);
 }

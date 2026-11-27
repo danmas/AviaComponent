@@ -6,12 +6,12 @@
 export interface ScreenParams {
   readonly shift: number;
   readonly mode: 'now' | 'movement';
-  readonly overlay: 'none' | 'urgent' | 'breakdown' | 'scrap';
+  readonly overlay: 'none' | 'urgent' | 'breakdown' | 'scrap' | 'incoming';
   readonly level: 'clean' | 'late' | 'paper' | 'empty';
   readonly seed: number;
 }
 
-const OVERLAYS = ['none', 'urgent', 'breakdown', 'scrap'] as const;
+const OVERLAYS = ['none', 'urgent', 'breakdown', 'scrap', 'incoming'] as const;
 const LEVELS = ['clean', 'late', 'paper', 'empty'] as const;
 
 function whole(value: string | null, fallback: number, min = 0): number {

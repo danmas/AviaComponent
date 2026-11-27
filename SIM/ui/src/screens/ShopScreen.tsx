@@ -1,6 +1,7 @@
 /**
  * Экран цеха: маршрут участков, место партий, очереди, простои, движение.
- * Только чтение среза `shop` — ничего не считает и не подменяет.
+ * Мощность и очередь не считает: берёт срез `shop`. Неразобранные заказы
+ * читает из среза ролей и отдаёт два решения — принять или отложить.
  *
  * Начальное состояние берётся из адреса (`?shift=3&mode=movement`), чтобы
  * снимок экрана был воспроизводим: одна ссылка — одно состояние.
@@ -9,7 +10,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ShopResponse } from '../../../api-client/types.ts';
 import { createClient } from '../../../api-client/client.ts';
-import { areasOf, chargeText, movementBetween, progressText, statusCounts, tracksOf } from '../lib/shop.ts';
+import { pendingOrders, type PendingOrder } from '../lib/orders.ts';
+import { areasOf, arrivalText, chargeText, movementBetween, progressText, statusCounts, tracksOf } from '../lib/shop.ts';
 import { downtimeText, missingLine, STATUS_TEXT } from '../lib/missing.ts';
 import { screenParams } from '../lib/params.ts';
 import { flowOf, hoursOf, waitMinutes } from '../lib/flow.ts';
@@ -27,6 +29,7 @@ interface ScreenState {
   readonly sessionId: string | null;
   readonly shift: number;
   readonly shop: Shop | null;
+  readonly orders: readonly PendingOrder[];
   readonly shiftCount: number;
   readonly error: string | null;
   readonly previous: Shop | null;
@@ -40,6 +43,7 @@ const EMPTY: ScreenState = {
   sessionId: null,
   shift: 0,
   shop: null,
+  orders: [],
   shiftCount: 12,
   error: null,
   previous: null,
@@ -77,6 +81,11 @@ function OperationLine(props: {
   );
 }
 
+async function ordersAt(sessionId: string, shift: number): Promise<readonly PendingOrder[]> {
+  const roles = await client.roles(sessionId, shift);
+  return pendingOrders(roles);
+}
+
 /** Доводит сессию до нужной смены шагами: срез существует только для пройденных смен. */
 async function reachShift(sessionId: string, target: number): Promise<number> {
   let current = 0;
@@ -100,12 +109,13 @@ export function ShopScreen(): JSX.Element {
           overlay: START.overlay,
         });
         const reached = await reachShift(created.id, START.shift);
-        const [now, before] = START.mode === 'movement' && reached > 0
+        const [now, before, orders] = START.mode === 'movement' && reached > 0
           ? await Promise.all([
               client.shop(created.id, reached),
               client.shop(created.id, reached - 1),
+              ordersAt(created.id, reached),
             ])
-          : [await client.shop(created.id, reached), null];
+          : [await client.shop(created.id, reached), null, await ordersAt(created.id, reached)] as const;
         if (!alive) {
           return;
         }
@@ -113,6 +123,7 @@ export function ShopScreen(): JSX.Element {
           sessionId: created.id,
           shift: reached,
           shop: now.reality,
+          orders,
           shiftCount: created.horizonShifts,
           error: null,
           previous: before === null ? null : before.reality,
@@ -140,11 +151,15 @@ export function ShopScreen(): JSX.Element {
     }
     try {
       const advanced = await client.advance(state.sessionId);
-      const shop = await client.shop(state.sessionId);
+      const [shop, orders] = await Promise.all([
+        client.shop(state.sessionId),
+        ordersAt(state.sessionId, advanced.currentShift),
+      ]);
       setState({
         ...state,
         shift: advanced.currentShift,
         shop: shop.reality,
+        orders,
         previous: state.mode === 'movement' ? state.shop : null,
         error: null,
       });
@@ -158,10 +173,29 @@ export function ShopScreen(): JSX.Element {
       return;
     }
     try {
-      const shop = await client.shop(state.sessionId, target);
-      setState({ ...state, shop: shop.reality, shift: target, previous: null, error: null });
+      const [shop, orders] = await Promise.all([
+        client.shop(state.sessionId, target),
+        ordersAt(state.sessionId, target),
+      ]);
+      setState({ ...state, shop: shop.reality, orders, shift: target, previous: null, error: null });
     } catch (error: unknown) {
       setState({ ...state, error: error instanceof Error ? error.message : `Срез смены ${target} не выдан` });
+    }
+  }
+
+  async function choose(orderId: string, type: 'accept-order' | 'defer-order'): Promise<void> {
+    if (state.sessionId === null) {
+      return;
+    }
+    try {
+      await client.decide(state.sessionId, { type, orderId });
+      const [shop, orders] = await Promise.all([
+        client.shop(state.sessionId, state.shift),
+        ordersAt(state.sessionId, state.shift),
+      ]);
+      setState({ ...state, shop: shop.reality, orders, error: null });
+    } catch (error: unknown) {
+      setState({ ...state, error: error instanceof Error ? error.message : 'Решение отклонено' });
     }
   }
 
@@ -330,12 +364,29 @@ export function ShopScreen(): JSX.Element {
         ))}
       </section>
 
+      {state.orders.length > 0 ? (
+        <section className="inbox">
+          <h2>Неразобранные заказы</h2>
+          <ul>
+            {state.orders.map((order) => (
+              <li key={order.id}>
+                <span>{order.id}</span>
+                <span>{order.due === null ? 'срок не задан' : `срок ${order.due} мин`}</span>
+                <button type="button" onClick={() => void choose(order.id, 'accept-order')}>принять</button>
+                <button type="button" onClick={() => void choose(order.id, 'defer-order')}>отложить</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section className="tracks">
         <h2>Партии по маршруту</h2>
         <table>
           <thead>
             <tr>
               <th>партия</th>
+              <th>появление</th>
               <th>штук</th>
               <th>пройдено</th>
               <th>сейчас</th>
@@ -347,6 +398,7 @@ export function ShopScreen(): JSX.Element {
             {tracks.map((track) => (
               <tr key={track.batch.id}>
                 <td>{track.batch.id}</td>
+                <td className={arrivalText(track.batch) === '' ? '' : 'batch-new'}>{arrivalText(track.batch)}</td>
                 <td>{track.batch.qty}</td>
                 <td>
                   {track.doneCount}/{track.totalCount}

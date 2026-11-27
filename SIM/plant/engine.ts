@@ -1,7 +1,7 @@
 import { pieces } from '../contract/quantity.ts';
 import type { Rng } from '../contract/rng.ts';
 import { instant, SHIFT_MINUTES, type SimInstant } from '../contract/time.ts';
-import { chargeSeats, completeOperation, receiveToWarehouse, recordDefect, startOperation } from './batch.ts';
+import { chargeSeats, completeOperation, launchBatch, receiveToWarehouse, recordDefect, startOperation, type NewBatch } from './batch.ts';
 import { occupationMinutes } from './occupation.ts';
 import { areaDecidesFitness, controlScrapFor } from './stand.ts';
 import {
@@ -66,6 +66,13 @@ export interface PriorityOrder {
   readonly appliedAt: number;
 }
 
+/** Партия, которую цех создаёт в заданную минуту, а не до прогона. */
+export interface ScheduledLaunch {
+  readonly at: number;
+  readonly due: number | null;
+  readonly batch: NewBatch;
+}
+
 export interface ShopRunInput {
   readonly shop: PlantState;
   readonly dueByBatch: ReadonlyMap<string, number | null>;
@@ -78,6 +85,8 @@ export interface ShopRunInput {
   readonly horizonShifts: number;
   /** Решения о приоритете. Пустой список — очередь сортируется как до этого изменения. */
   readonly priority?: readonly PriorityOrder[];
+  /** Запуски после нулевой минуты. Нулевые партии передаются уже созданными. */
+  readonly launches?: readonly ScheduledLaunch[];
 }
 
 interface Job {
@@ -128,6 +137,10 @@ export function runShop(input: ShopRunInput): ShopRun {
   }
   const horizonEnd = input.horizonShifts * SHIFT_MINUTES;
   let shop = input.shop;
+  const dueByBatch = new Map(input.dueByBatch);
+  const pendingLaunches = [...(input.launches ?? [])].sort(
+    (left, right) => left.at - right.at || byId(left.batch.id, right.batch.id),
+  );
   const jobs: Job[] = [];
   const starts: ShopStart[] = [];
   const completions: ShopCompletion[] = [];
@@ -152,8 +165,30 @@ export function runShop(input: ShopRunInput): ShopRun {
   }
 
   function dueOf(batchId: string): number | null {
-    const due = input.dueByBatch.get(batchId);
+    const due = dueByBatch.get(batchId);
     return due === undefined ? null : due;
+  }
+
+  function appearedAtOf(batchId: string): number {
+    const batch = shop.batches.find((item) => item.id === batchId);
+    return batch === undefined ? 0 : batch.appearedAt;
+  }
+
+  function launchArrived(now: number): void {
+    let count = 0;
+    while (count < pendingLaunches.length) {
+      const launch = pendingLaunches[count];
+      if (launch === undefined || launch.at > now) {
+        break;
+      }
+      if (launch.at !== now) {
+        throw new Error('Часы цеха проскочили минуту запуска партии.');
+      }
+      shop = launchBatch(shop, launch.batch);
+      dueByBatch.set(launch.batch.id, launch.due);
+      count += 1;
+    }
+    pendingLaunches.splice(0, count);
   }
 
   /**
@@ -183,6 +218,14 @@ export function runShop(input: ShopRunInput): ShopRun {
       if (leftValue !== rightValue) {
         return leftValue - rightValue;
       }
+    }
+    // Ранг, затем признак новизны, затем договорная дата, затем идентификатор.
+    // Партия, появившаяся после старта, без более высокого ранга встаёт после
+    // уже ожидавших. Ранний срок сам её не проталкивает.
+    const leftNew = appearedAtOf(left.batchId) > 0;
+    const rightNew = appearedAtOf(right.batchId) > 0;
+    if (leftNew !== rightNew) {
+      return leftNew ? 1 : -1;
     }
     const leftDue = dueOf(left.batchId);
     const rightDue = dueOf(right.batchId);
@@ -427,6 +470,7 @@ export function runShop(input: ShopRunInput): ShopRun {
 
   function tick(now: number, allowStart: boolean): void {
     shop = at(shop, instant(now));
+    launchArrived(now);
     completeDue(now);
     receiveWarehouses(now);
     snap(now);
@@ -453,6 +497,11 @@ export function runShop(input: ShopRunInput): ShopRun {
     const boundary = (Math.floor(now / SHIFT_MINUTES) + 1) * SHIFT_MINUTES;
     if (boundary > now && boundary < next) {
       next = boundary;
+    }
+    for (const launch of pendingLaunches) {
+      if (launch.at > now && launch.at < next) {
+        next = launch.at;
+      }
     }
     if (next <= now) {
       throw new Error('Часы цеха не продвинулись.');

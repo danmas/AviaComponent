@@ -102,9 +102,11 @@ function distinctFacts(facts: readonly FactRecord[]): { kept: FactRecord[]; dupl
 
 export function portfolio(records: SystemRecords, expectedOrders: number): MetricResult<PortfolioValue> {
   const open = records.orders.filter((order) => order.status !== 'archive');
+  // Неразобранный заказ уже в портфеле, но в числитель покрытия не входит.
+  const counted = open.filter((order) => order.status !== 'unparsed');
   let remainderNormHours = 0;
   let ordersWithoutNorm = 0;
-  for (const order of open) {
+  for (const order of counted) {
     const total = orderNorm(records, order.id);
     if (total === null) {
       ordersWithoutNorm += 1;
@@ -119,7 +121,7 @@ export function portfolio(records: SystemRecords, expectedOrders: number): Metri
     );
     remainderNormHours += Math.max(0, total - accepted);
   }
-  const present = open.length - ordersWithoutNorm;
+  const present = counted.length - ordersWithoutNorm;
   return {
     id: 'portfolio',
     value: { openCount: open.length, remainderNormHours, ordersWithoutNorm },

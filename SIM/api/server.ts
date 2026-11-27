@@ -184,12 +184,13 @@ export async function buildApp(
     schema: {
       body: {
         type: 'object',
-        required: ['type', 'batchId', 'rank'],
+        required: ['type'],
         additionalProperties: false,
         properties: {
           type: { type: 'string' },
-          batchId: { type: 'string', minLength: 1 },
+          batchId: { type: 'string' },
           rank: { type: 'integer' },
+          orderId: { type: 'string' },
           appliedAt: { type: 'integer' },
         },
       },
@@ -197,11 +198,21 @@ export async function buildApp(
     },
   }, async (request) => {
     const { id } = request.params as { id: string };
-    const body = request.body as DecisionInput;
-    const input: DecisionInput = { type: body.type, batchId: body.batchId, rank: body.rank };
-    return versioned(body.appliedAt === undefined
-      ? store.decide(id, input)
-      : store.decide(id, { ...input, appliedAt: body.appliedAt }));
+    const body = request.body as {
+      type: string;
+      batchId?: string;
+      rank?: number;
+      orderId?: string;
+      appliedAt?: number;
+    };
+    const input: DecisionInput = {
+      type: body.type,
+      ...(body.batchId === undefined ? {} : { batchId: body.batchId }),
+      ...(body.rank === undefined ? {} : { rank: body.rank }),
+      ...(body.orderId === undefined ? {} : { orderId: body.orderId }),
+      ...(body.appliedAt === undefined ? {} : { appliedAt: body.appliedAt }),
+    };
+    return versioned(store.decide(id, input));
   });
 
   app.post(pathV1('/sessions/:id/advance'), {

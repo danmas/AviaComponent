@@ -2,7 +2,7 @@ import type { Pieces } from '../contract/quantity.ts';
 import type { SimInstant } from '../contract/time.ts';
 import type { AnyQuantity, Quantity } from '../contract/units.ts';
 
-export type OrderStatus = 'draft' | 'dse' | 'in-production' | 'archive';
+export type OrderStatus = 'draft' | 'dse' | 'in-production' | 'archive' | 'unparsed';
 
 export interface OrderRecord {
   readonly id: string;

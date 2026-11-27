@@ -54,8 +54,9 @@ export interface CreateSessionBody {
 
 export interface DecisionBody {
   readonly type: string;
-  readonly batchId: string;
-  readonly rank: number;
+  readonly batchId?: string;
+  readonly rank?: number;
+  readonly orderId?: string;
   readonly appliedAt?: number;
 }
 

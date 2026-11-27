@@ -155,6 +155,27 @@ async function main(): Promise<void> {
     record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${emptyId}/shop`) })).json());
     record('SessionResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${emptyId}`) })).json());
 
+    // Помеха прихода: в партии есть момент появления, в решении — заказ, не партия.
+    const incoming = await app.inject({
+      method: 'POST',
+      url: pathV1('/sessions'),
+      payload: { seed: SEED, level: 'clean', overlay: 'incoming' },
+    });
+    const incomingId = (incoming.json() as { id: string }).id;
+    for (let step = 0; step < 4; step += 1) {
+      await app.inject({ method: 'POST', url: pathV1(`/sessions/${incomingId}/advance`) });
+    }
+    record('RolesResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}/roles`) })).json());
+    record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}/shop`) })).json());
+    const acceptedOrder = await app.inject({
+      method: 'POST',
+      url: pathV1(`/sessions/${incomingId}/decisions`),
+      payload: { type: 'accept-order', orderId: 'order-5' },
+    });
+    record('DecisionResponse', acceptedOrder.json());
+    record('SessionResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}`) })).json());
+    record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}/shop`) })).json());
+
     const openapi = {
       x_generated: true,
       'x-generated-by': 'node --experimental-strip-types api/schema.ts',
@@ -183,7 +204,7 @@ async function main(): Promise<void> {
                     properties: {
                       seed: { type: 'integer' },
                       level: { type: 'string', enum: ['clean', 'late', 'paper', 'empty'] },
-                      overlay: { type: 'string', enum: ['none', 'urgent', 'breakdown', 'scrap'] },
+                      overlay: { type: 'string', enum: ['none', 'urgent', 'breakdown', 'scrap', 'incoming'] },
                       horizonShifts: { type: 'integer', minimum: 10, maximum: 15 },
                     },
                   },

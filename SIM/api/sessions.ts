@@ -7,15 +7,17 @@ import type { UnitKind } from '../contract/units.ts';
 import type { PriorityOrder } from '../plant/engine.ts';
 import { shopSlice } from '../plant/state.ts';
 import type { PlantState } from '../plant/state.ts';
+import { ordersFor } from '../run/catalog.ts';
 import { EXPECTED, LEVEL_NAMES, OVERLAY_NAMES, type LevelName, type OverlayName } from '../run/levels.ts';
+import { type OrderChoice } from '../run/run.ts';
 import { runStand } from '../run/run.ts';
-import { recordDecision, type DecisionRecord } from '../system/journal.ts';
+import { orderDecisionRecord, recordDecision, type DecisionRecord } from '../system/journal.ts';
 import { fourMetrics, summarySlice, type FourMetrics, type MetricId } from '../system/metrics.ts';
 import type { SystemRecords } from '../system/types.ts';
 import { replayWithinWindow, trimToWindow, type ReplaySlice } from './stream.ts';
 import type { ApiVersion } from './version.ts';
 
-export const DECISION_TYPES = ['priority'] as const;
+export const DECISION_TYPES = ['priority', 'accept-order', 'defer-order'] as const;
 
 const METRIC_IDS = ['portfolio', 'overload', 'acceptedShift', 'scheduleRisk'] as const satisfies readonly MetricId[];
 
@@ -123,12 +125,18 @@ export interface RolesBody extends RoleRecordsSlice<RoleRow> {
   readonly shift: number;
 }
 
-export interface DecisionRow {
-  readonly type: 'priority';
-  readonly batchId: string;
-  readonly rank: number;
-  readonly appliedAt: number;
-}
+export type DecisionRow =
+  | {
+      readonly type: 'priority';
+      readonly batchId: string;
+      readonly rank: number;
+      readonly appliedAt: number;
+    }
+  | {
+      readonly type: 'accept-order' | 'defer-order';
+      readonly orderId: string;
+      readonly appliedAt: number;
+    };
 
 export type SessionEvent =
   | { readonly seq: number; readonly at: number; readonly type: 'shift-started'; readonly payload: { readonly shift: number } }
@@ -143,7 +151,9 @@ export type SessionEvent =
       readonly seq: number;
       readonly at: number;
       readonly type: 'decision-applied';
-      readonly payload: { readonly type: 'priority'; readonly batchId: string; readonly rank: number; readonly appliedAt: number };
+      readonly payload:
+        | { readonly type: 'priority'; readonly batchId: string; readonly rank: number; readonly appliedAt: number }
+        | { readonly type: 'accept-order' | 'defer-order'; readonly orderId: string; readonly appliedAt: number };
     }
   | {
       readonly seq: number;
@@ -177,8 +187,9 @@ export interface CreateSessionInput {
 
 export interface DecisionInput {
   readonly type: string;
-  readonly batchId: string;
-  readonly rank: number;
+  readonly batchId?: string;
+  readonly rank?: number;
+  readonly orderId?: string;
   readonly appliedAt?: number;
 }
 
@@ -314,6 +325,7 @@ function buildSlice(input: {
   readonly overlay: OverlayName;
   readonly shift: number;
   readonly priority: readonly PriorityOrder[];
+  readonly orderChoices: readonly OrderChoice[];
 }): IssuedSlice {
   const horizonShifts = input.shift + 1;
   const result = runStand({
@@ -322,10 +334,11 @@ function buildSlice(input: {
     overlay: input.overlay,
     horizonShifts,
     priority: input.priority,
+    ...(input.orderChoices.length === 0 ? {} : { orderChoices: input.orderChoices }),
   });
   const metrics = fourMetrics(
     result.records,
-    { orders: EXPECTED.orders, areas: EXPECTED.loadAreas, shiftFacts: EXPECTED.marks },
+    { orders: result.records.orders.length, areas: EXPECTED.loadAreas, shiftFacts: EXPECTED.marks },
     shiftWindow(input.shift, horizonShifts),
   );
   const base = summarySlice(metrics);
@@ -352,16 +365,34 @@ function priorityFor(session: Session, shift: number): PriorityOrder[] {
   const until = shift * SHIFT_MINUTES;
   const rows: PriorityOrder[] = [];
   for (const decision of session.decisions) {
-    if (decision.appliedAt <= until) {
-      rows.push({ batchId: decision.batchId, rank: decision.rank, appliedAt: decision.appliedAt });
+    if (decision.type !== 'priority' || decision.appliedAt > until) {
+      continue;
     }
+    rows.push({ batchId: decision.batchId, rank: decision.rank, appliedAt: decision.appliedAt });
   }
   return rows;
 }
 
-function issue(session: Session): IssuedSlice {
+function orderChoicesFor(session: Session, shift: number): OrderChoice[] {
+  const until = shift * SHIFT_MINUTES;
+  const rows: OrderChoice[] = [];
+  for (const decision of session.decisions) {
+    if ((decision.type !== 'accept-order' && decision.type !== 'defer-order') || decision.appliedAt > until) {
+      continue;
+    }
+    rows.push({
+      type: decision.type,
+      orderId: decision.orderId,
+      at: decision.appliedAt,
+      basisMetric: 'portfolio',
+    });
+  }
+  return rows;
+}
+
+function issue(session: Session, force = false): IssuedSlice {
   const existing = session.issued[session.currentShift];
-  if (existing !== undefined) {
+  if (existing !== undefined && !force) {
     return existing;
   }
   const slice = buildSlice({
@@ -370,6 +401,7 @@ function issue(session: Session): IssuedSlice {
     overlay: session.overlay,
     shift: session.currentShift,
     priority: priorityFor(session, session.currentShift),
+    orderChoices: orderChoicesFor(session, session.currentShift),
   });
   session.issued[session.currentShift] = slice;
   return slice;
@@ -506,13 +538,6 @@ export function createSessionStore(): SessionStore {
       if (!(DECISION_TYPES as readonly string[]).includes(input.type)) {
         throw new ApiError(400, `Неизвестный тип решения «${input.type}». Допустимые типы: ${DECISION_TYPES.join(', ')}.`);
       }
-      const batchId = input.batchId.trim();
-      if (batchId.length === 0) {
-        throw new ApiError(400, 'Решение о приоритете требует партию.');
-      }
-      if (!Number.isInteger(input.rank)) {
-        throw new ApiError(400, 'Ранг приоритета — целое число.');
-      }
       const appliedAt = session.currentShift * SHIFT_MINUTES;
       if (input.appliedAt !== undefined) {
         if (!Number.isInteger(input.appliedAt)) {
@@ -526,22 +551,69 @@ export function createSessionStore(): SessionStore {
         }
       }
       const seen = issuedFor(session, session.currentShift);
+      if (input.type === 'accept-order' || input.type === 'defer-order') {
+        const orderType = input.type;
+        const orderId = (input.orderId ?? '').trim();
+        if (orderId.length === 0) {
+          throw new ApiError(400, 'Решение по заказу требует идентификатор заказа.');
+        }
+        const order = ordersFor(session.level, session.overlay).find((item) => item.id === orderId);
+        if (order === undefined) {
+          throw new ApiError(400, `Заказа «${orderId}» в этом прогоне нет.`);
+        }
+        if (order.acceptedByDefault) {
+          throw new ApiError(409, `Заказ «${order.id}» уже принят.`);
+        }
+        if (order.arrivesAt > appliedAt) {
+          throw new ApiError(409, `Заказ «${order.id}» ещё не поступил.`);
+        }
+        const book = seen.summary.metrics.portfolio;
+        const journal = orderDecisionRecord({
+          type: orderType,
+          orderId,
+          at: appliedAt,
+          basisMetric: 'portfolio',
+          basisValue: JSON.stringify(book.value),
+          coverage: book.coverage,
+        });
+        const decision: DecisionRow = { type: orderType, orderId, appliedAt };
+        session.decisions.push(decision);
+        session.decisionJournal.push(journal);
+        const event = publish(session, {
+          at: appliedAt,
+          type: 'decision-applied',
+          payload: { type: orderType, orderId, appliedAt },
+        });
+        // Срез этой смены пересобирается: решение датировано её началом,
+        // партии должны быть видны в ней же. Прошлые смены не трогаются.
+        // Решение о приоритете по-прежнему выданный срез не переписывает.
+        issue(session, true);
+        return { decision, journal, event };
+      }
+      const batchId = (input.batchId ?? '').trim();
+      if (batchId.length === 0) {
+        throw new ApiError(400, 'Решение о приоритете требует партию.');
+      }
+      const rank = input.rank;
+      if (typeof rank !== 'number' || !Number.isInteger(rank)) {
+        throw new ApiError(400, 'Ранг приоритета — целое число.');
+      }
       const risk = seen.summary.metrics.scheduleRisk;
       const journal = recordDecision({
         at: instant(appliedAt),
-        action: `приоритет партии ${batchId}: ранг ${input.rank}`,
+        action: `приоритет партии ${batchId}: ранг ${rank}`,
         basisMetric: 'scheduleRisk',
         basisValue: JSON.stringify(risk.value),
         coverage: risk.coverage,
         consequence: 'ранг действует с начала этой смены; уже выданный срез не пересчитывается',
       });
-      const decision: DecisionRow = { type: 'priority', batchId, rank: input.rank, appliedAt };
+      const decision: DecisionRow = { type: 'priority', batchId, rank, appliedAt };
       session.decisions.push(decision);
       session.decisionJournal.push(journal);
       const event = publish(session, {
         at: appliedAt,
         type: 'decision-applied',
-        payload: { type: 'priority', batchId, rank: input.rank, appliedAt },
+        payload: { type: 'priority', batchId, rank, appliedAt },
       });
       return { decision, journal, event };
     },

@@ -11,9 +11,10 @@ export type SessionResponse = {
   readonly currentShift: number;
   readonly decisions: readonly {
     readonly type: string;
-    readonly batchId: string;
-    readonly rank: number;
+    readonly batchId?: string;
+    readonly rank?: number;
     readonly appliedAt: number;
+    readonly orderId?: string;
   }[];
   readonly createdAt: string;
   readonly replayable: boolean;
@@ -308,6 +309,7 @@ export type ShopResponse = {
       readonly materialReady: boolean;
       readonly designDocReady: boolean;
       readonly operationIds: readonly string[];
+      readonly appearedAt: number;
     }[];
     readonly operations: readonly {
       readonly id: string;
@@ -385,9 +387,10 @@ export type DecisionResponse = {
   readonly apiVersion: string;
   readonly decision: {
     readonly type: string;
-    readonly batchId: string;
-    readonly rank: number;
+    readonly batchId?: string;
+    readonly rank?: number;
     readonly appliedAt: number;
+    readonly orderId?: string;
   };
   readonly journal: {
     readonly at: number;
@@ -402,9 +405,10 @@ export type DecisionResponse = {
     readonly type: string;
     readonly payload: {
       readonly type: string;
-      readonly batchId: string;
-      readonly rank: number;
+      readonly batchId?: string;
+      readonly rank?: number;
       readonly appliedAt: number;
+      readonly orderId?: string;
     };
     readonly seq: number;
   };
