@@ -316,6 +316,8 @@ export type ShopResponse = {
       readonly sequence: number;
       readonly status: string;
       readonly missing: readonly string[];
+      readonly readyAt: number | null;
+      readonly startedAt: number | null;
       readonly planned: number;
       readonly done: number;
       readonly scrap: number;

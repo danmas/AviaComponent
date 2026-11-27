@@ -1,4 +1,5 @@
 import { applyTearOff, pieces, transferred, type Pieces, type TearOffGround } from '../contract/quantity.ts';
+import { instant, type SimInstant } from '../contract/time.ts';
 import { ROUTE } from './stand.ts';
 import {
   goodPieces,
@@ -18,12 +19,24 @@ export interface NewBatch {
   readonly designDocReady: boolean;
 }
 
+/**
+ * Ворота запуска и момент готовности вместе.
+ *
+ * Момент готовности ставится здесь, а не в местах вызова: у операции трое ворот
+ * (материал, КД, предыдущая операция), и готовой она становится, когда снято
+ * последнее. Если ставить момент в каждом вызове отдельно, три места разойдутся
+ * при первом же изменении правил.
+ *
+ * `now` — минута цеха, в которую ворота проверяются. Для операций, созданных
+ * вместе с партией, это ноль; для остальных — текущая минута.
+ */
 function gate(
   batch: Pick<PlantBatch, 'materialReady' | 'designDocReady'>,
   sequence: number,
   previousDone: boolean,
   planned: Pieces,
-): { status: OperationStatus; missing: readonly MissingGate[] } {
+  now: SimInstant,
+): { status: OperationStatus; missing: readonly MissingGate[]; readyAt: SimInstant | null } {
   const missing: MissingGate[] = [];
   if (!batch.materialReady) {
     missing.push('material');
@@ -35,13 +48,13 @@ function gate(
     missing.push('previous');
   }
   const status: OperationStatus = missing.length > 0 || planned === 0 ? 'not-ready' : 'ready';
-  return { status, missing };
+  return { status, missing, readyAt: status === 'ready' ? now : null };
 }
 
-function operationsFor(batch: NewBatch): PlantOperation[] {
+function operationsFor(batch: NewBatch, now: SimInstant): PlantOperation[] {
   return ROUTE.map((step, sequence) => {
     const planned = sequence === 0 ? batch.qty : pieces(0);
-    const opened = gate(batch, sequence, sequence === 0, planned);
+    const opened = gate(batch, sequence, sequence === 0, planned, now);
     return {
       id: `${batch.id}-op-${sequence}`,
       batchId: batch.id,
@@ -49,6 +62,8 @@ function operationsFor(batch: NewBatch): PlantOperation[] {
       sequence,
       status: opened.status,
       missing: opened.missing,
+      readyAt: opened.readyAt,
+      startedAt: null,
       planned,
       done: pieces(0),
       scrap: pieces(0),
@@ -65,7 +80,8 @@ export function launchBatch(state: PlantState, input: NewBatch): PlantState {
   if (input.qty <= 0) {
     throw new Error('Пустая партия не запускается.');
   }
-  const operations = operationsFor(input);
+  // Партия создаётся в текущую минуту цеха: первая операция готова сразу.
+  const operations = operationsFor(input, state.now);
   const batch: PlantBatch = {
     id: input.id,
     partId: input.partId,
@@ -127,7 +143,7 @@ export function tearOffBatch(
     materialReady: parent.materialReady,
     designDocReady: parent.designDocReady,
   };
-  const childOps = operationsFor(childInput);
+  const childOps = operationsFor(childInput, state.now);
   const child: PlantBatch = {
     id: childId,
     partId: parent.partId,
@@ -144,12 +160,17 @@ export function tearOffBatch(
       return operation;
     }
     const planned = pieces(operation.sequence === 0 ? split.parentQty : 0);
-    const opened = gate(parentNext, operation.sequence, false, planned);
+    const opened = gate(parentNext, operation.sequence, false, planned, state.now);
+    // Момент готовности родителя не переписывается: отрыв возможен только до
+    // начала обработки, значит операция уже имела свой момент. Новый берётся,
+    // только если его не было, — иначе наблюдение ожидания сдвинулось бы назад.
+    const readyAt = operation.readyAt ?? opened.readyAt;
     return {
       ...operation,
       planned,
       status: operation.sequence === 0 ? opened.status : operation.status,
       missing: operation.sequence === 0 ? opened.missing : operation.missing,
+      readyAt: operation.sequence === 0 ? readyAt : operation.readyAt,
     };
   });
   return {
@@ -186,7 +207,7 @@ export function startOperation(state: PlantState, operationId: string, resourceI
   return {
     ...state,
     operations: state.operations.map((item) =>
-      item.id === operation.id ? { ...item, status: 'running', resourceId: resource.id } : item,
+      item.id === operation.id ? { ...item, status: 'running', resourceId: resource.id, startedAt: state.now } : item,
     ),
   };
 }
@@ -206,9 +227,11 @@ export function completeOperation(state: PlantState, operationId: string, done: 
   );
   const next = operations.find((item) => item.batchId === operation.batchId && item.sequence === operation.sequence + 1);
   if (next) {
-    const opened = gate(batch, next.sequence, true, good);
+    const opened = gate(batch, next.sequence, true, good, state.now);
     operations = operations.map((item) =>
-      item.id === next.id ? { ...item, planned: good, status: opened.status, missing: opened.missing } : item,
+      item.id === next.id
+        ? { ...item, planned: good, status: opened.status, missing: opened.missing, readyAt: opened.readyAt }
+        : item,
     );
   }
   return { ...state, operations };

@@ -46,6 +46,19 @@ export interface PlantOperation {
   readonly sequence: number;
   readonly status: OperationStatus;
   readonly missing: readonly MissingGate[];
+  /**
+   * Момент, когда операция стала готовой к запуску. Пусто, пока хоть одни
+   * ворота закрыты. Хранится момент, а не длительность ожидания: длительность
+   * растёт при наблюдении, а момент неизменен — только так прошлый срез
+   * остаётся тем же самым.
+   */
+  readonly readyAt: SimInstant | null;
+  /**
+   * Момент запуска операции на ресурсе. Пусто, пока операция не начата.
+   * Нужен, чтобы пролёживание законченного ожидания не росло: у работающей
+   * и закрытой операции оно равно `startedAt − readyAt` и дальше не меняется.
+   */
+  readonly startedAt: SimInstant | null;
   readonly planned: Pieces;
   readonly done: Pieces;
   readonly scrap: Pieces;

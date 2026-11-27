@@ -1582,6 +1582,14 @@
                         "type": "string"
                       }
                     },
+                    "readyAt": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "startedAt": {
+                      "type": "integer",
+                      "nullable": true
+                    },
                     "planned": {
                       "type": "integer"
                     },
@@ -1620,9 +1628,11 @@
                     "id",
                     "missing",
                     "planned",
+                    "readyAt",
                     "resourceId",
                     "scrap",
                     "sequence",
+                    "startedAt",
                     "status"
                   ]
                 }

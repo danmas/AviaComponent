@@ -12,8 +12,13 @@ import { createClient } from '../../../api-client/client.ts';
 import { areasOf, movementBetween, statusCounts, tracksOf } from '../lib/shop.ts';
 import { downtimeText, missingLine, STATUS_TEXT } from '../lib/missing.ts';
 import { screenParams } from '../lib/params.ts';
+import { flowOf, hoursOf, waitMinutes } from '../lib/flow.ts';
+import { waitingOf, waitingText } from '../lib/waiting.ts';
+import { RouteFlow } from './RouteFlow.tsx';
 
-const API_BASE = import.meta.env['VITE_API_BASE'] ?? 'http://127.0.0.1:3400';
+// В сборке экран и API живут на одном хосте: адрес берётся из страницы.
+// В разработке Vite на 5173, а сервер на 3400 — тогда задаётся VITE_API_BASE.
+const API_BASE = import.meta.env['VITE_API_BASE'] ?? (globalThis.location?.origin ?? 'http://127.0.0.1:3400');
 const client = createClient({ baseUrl: API_BASE });
 
 export type Shop = ShopResponse['reality'];
@@ -186,6 +191,7 @@ export function ShopScreen(): JSX.Element {
     () => (state.shop === null || state.previous === null ? [] : movementBetween(state.previous, state.shop)),
     [state.shop, state.previous],
   );
+  const flow = useMemo(() => (state.shop === null ? null : flowOf(state.shop)), [state.shop]);
 
   if (state.loading) {
     return <div className="sheet">Считаем срез…</div>;
@@ -243,6 +249,8 @@ export function ShopScreen(): JSX.Element {
         <span>закрыто: <b>{counts['done']}</b></span>
       </section>
 
+      {flow !== null ? <RouteFlow flow={flow} /> : null}
+
       <section className="route">
         {areas.map((area) => (
           <article key={area.id} className={`area ${area.idle ? 'area-idle' : ''}`}>
@@ -282,14 +290,25 @@ export function ShopScreen(): JSX.Element {
               <div className="group">
                 <div className="group-title">очередь: {area.waiting.length}</div>
                 {area.waiting.map((operation) => (
-                  <OperationLine
-                    key={operation.id}
-                    title={`${operation.batchId} · шаг ${operation.sequence}`}
-                    status={operation.status}
-                    done={operation.done}
-                    planned={operation.planned}
-                    scrap={operation.scrap}
-                  />
+                  <div key={operation.id}>
+                    <OperationLine
+                      title={`${operation.batchId} · шаг ${operation.sequence}`}
+                      status={operation.status}
+                      done={operation.done}
+                      planned={operation.planned}
+                      scrap={operation.scrap}
+                    />
+                    <span className="op-wait">
+                      {waitingText(
+                        waitingOf({
+                          status: operation.status,
+                          readyAt: operation.readyAt ?? null,
+                          startedAt: operation.startedAt ?? null,
+                          now: state.shop?.now ?? 0,
+                        }),
+                      )}
+                    </span>
+                  </div>
                 ))}
               </div>
             ) : null}
@@ -311,6 +330,7 @@ export function ShopScreen(): JSX.Element {
               <th>штук</th>
               <th>пройдено</th>
               <th>сейчас</th>
+              <th>ожидание</th>
               <th>причина</th>
             </tr>
           </thead>
@@ -326,6 +346,18 @@ export function ShopScreen(): JSX.Element {
                   {track.current === null
                     ? 'маршрут пройден'
                     : `${track.current.areaName} · шаг ${track.current.operation.sequence} · ${STATUS_TEXT[track.current.operation.status as keyof typeof STATUS_TEXT] ?? track.current.operation.status}`}
+                </td>
+                <td className="wait">
+                  {track.current === null
+                    ? ''
+                    : waitingText(
+                        waitingOf({
+                          status: track.current.operation.status,
+                          readyAt: track.current.operation.readyAt ?? null,
+                          startedAt: track.current.operation.startedAt ?? null,
+                          now: state.shop?.now ?? 0,
+                        }),
+                      )}
                 </td>
                 <td className="reason">
                   {track.current === null

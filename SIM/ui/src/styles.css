@@ -280,3 +280,111 @@ code {
   background: rgba(0, 0, 0, 0.05);
   padding: 1px 4px;
 }
+
+/* Схема маршрута: связи между участками, узкое место — рамка, не цвет. */
+.flow {
+  margin: 20px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.flow-note {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--stamp);
+}
+
+.flow-chain {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.flow-node {
+  flex: 1 1 92px;
+  min-width: 92px;
+  border: 1px solid var(--rule);
+  padding: 6px 8px 8px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.flow-bottleneck {
+  border: 2px solid var(--ink);
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.flow-name {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.flow-state {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  color: var(--ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-run {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
+.flow-wait {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  color: var(--stamp);
+}
+
+.flow-free {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.flow-link {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-arrow {
+  font-size: 11px;
+}
+
+.flow-count {
+  font-size: 11px;
+  color: var(--ink-mid);
+}
+
+.wait,
+.op-wait {
+  color: var(--stamp);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.op-wait {
+  display: block;
+  padding: 0 0 4px 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 4px;
+}

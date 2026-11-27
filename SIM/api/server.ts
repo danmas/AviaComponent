@@ -1,6 +1,8 @@
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { decideCors, originFromEnv, type CorsConfig } from './cors.ts';
 import {
@@ -69,6 +71,7 @@ function isAddrInUse(error: unknown): boolean {
 export async function buildApp(
   store: SessionStore = createSessionStore(),
   cors: CorsConfig = { origins: [] },
+  statics?: { readonly root: string },
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   await app.register(websocket);
@@ -266,6 +269,34 @@ export async function buildApp(
     });
   });
 
+  // Раздача собранного экрана — до ready(): Fastify не даёт добавлять маршруты
+  // после того, как приложение объявлено готовым.
+  if (statics !== undefined) {
+    const indexFile = path.join(statics.root, 'index.html');
+    const assetsDir = path.join(statics.root, 'assets');
+    const mime: Record<string, string> = {
+      '.html': 'text/html; charset=utf-8',
+      '.js': 'text/javascript; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.png': 'image/png',
+      '.svg': 'image/svg+xml',
+    };
+    app.get('/', (_request, reply) => {
+      if (!fs.existsSync(indexFile)) {
+        return reply.status(404).send(versioned({ error: 'сборка экрана не найдена: нужен vite build' }));
+      }
+      return reply.type(mime['.html'] ?? 'text/html').send(fs.readFileSync(indexFile, 'utf8'));
+    });
+    app.get('/assets/*', (request, reply) => {
+      const relative = (request.params as Record<string, string>)['*'] ?? '';
+      const file = path.join(assetsDir, relative);
+      if (!file.startsWith(assetsDir) || !fs.existsSync(file)) {
+        return reply.status(404).send(versioned({ error: 'нет такого файла' }));
+      }
+      return reply.type(mime[path.extname(file)] ?? 'application/octet-stream').send(fs.readFileSync(file));
+    });
+  }
+
   await app.ready();
   return app;
 }
@@ -275,8 +306,13 @@ export async function startApi(options: {
   host?: string;
   store?: SessionStore;
   cors?: CorsConfig;
+  statics?: { readonly root: string };
 }): Promise<FastifyInstance> {
-  const app = await buildApp(options.store ?? createSessionStore(), options.cors ?? originFromEnv());
+  const app = await buildApp(
+    options.store ?? createSessionStore(),
+    options.cors ?? originFromEnv(),
+    options.statics,
+  );
   const host = options.host ?? '127.0.0.1';
   try {
     await app.listen({ port: options.port, host });
