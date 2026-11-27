@@ -102,7 +102,7 @@ test('партия больше садки в печь не сажается', (
   let state = launchBatch(createShop(), {
     id: 'b',
     partId: 'p',
-    qty: pieces(5),
+    qty: pieces(9),
     materialReady: true,
     designDocReady: true,
   });
@@ -116,7 +116,7 @@ test('партия больше садки в печь не сажается', (
   state = completeOperation(state, mill.id, mill.planned, pieces(0));
   const heat = state.operations.find((operation) => operation.sequence === 2);
   assert.ok(heat);
-  assert.equal(heat.planned, 5);
+  assert.equal(heat.planned, 9);
   assert.throws(() => startOperation(state, heat.id, 'area-heat-1'), /садки/);
 });
 

@@ -25,8 +25,9 @@
 | **Понять блоки на карте потоков производства** | [README_MAP_RECONSTRUCTION.md](README_MAP_RECONSTRUCTION.md) |
 | Понять, что делать и в каком порядке | [README_ROADMAP.md](README_ROADMAP.md) |
 | Оценить бюджеты и альтернативы | [README_OPTIONS.md](README_OPTIONS.md) |
-| Расшифровать аббревиатуру | [README_GLOSSARY.md](README_GLOSSARY.md) |
+| Расшифровать термины и картину предприятия | [README_GLOSSARY.md](README_GLOSSARY.md) — глоссарий + модель на пальцах |
 | Как устроена модель производства симулятора | [../SIM/README_SIM_DATA.md](../SIM/README_SIM_DATA.md) |
+| **Карта потоков данных** | [README_DATA_FLOWS.md](README_DATA_FLOWS.md) — как данные движутся между цехом, записями и клиентом |
 
 ---
 

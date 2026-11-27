@@ -1,18 +1,12 @@
 import { SHIFT_MINUTES } from '../contract/time.ts';
 import type { LevelName, OverlayName } from './levels.ts';
 
-/** Штук в партии. Равно садке стенда, чтобы партия садилась в печь целиком. */
+/** Штук в партии. Садка печи — 8 штук, две партии садятся вместе. */
 export const BATCH_PIECES = 4;
 
 export const URGENT_DUE_MINUTE = SHIFT_MINUTES;
 export const BREAKDOWN_RESOURCE = 'area-cnc-turn-1';
 export const BREAKDOWN_UNTIL = SHIFT_MINUTES;
-
-export const SCRAP_PARENT = 'batch-2';
-export const SCRAP_CHILD = 'batch-2d';
-export const SCRAP_CHILD_PIECES = 1;
-export const SCRAP_OPERATION = 'batch-1-op-0';
-export const SCRAP_PIECES = 1;
 
 export interface StandOrder {
   readonly id: string;

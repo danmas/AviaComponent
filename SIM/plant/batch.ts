@@ -180,6 +180,31 @@ export function tearOffBatch(
   };
 }
 
+function previousOperation(state: PlantState, operation: PlantOperation): PlantOperation | null {
+  if (operation.sequence === 0) {
+    return null;
+  }
+  return (
+    state.operations.find((item) => item.batchId === operation.batchId && item.sequence === operation.sequence - 1) ??
+    null
+  );
+}
+
+/**
+ * Сколько штук операция занимает в садке.
+ * Пока предыдущая операция не закрыта, резервируется вся партия:
+ * хвост должен сесть в ту же садку, а не переполнить её задним числом.
+ * Когда предыдущая закрыта, в садке ровно плановое количество.
+ */
+export function chargeSeats(state: PlantState, operationId: string): number {
+  const operation = requireOperation(state, operationId);
+  const upstream = previousOperation(state, operation);
+  if (upstream !== null && upstream.status !== 'done') {
+    return requireBatch(state, operation.batchId).qty;
+  }
+  return operation.planned;
+}
+
 export function startOperation(state: PlantState, operationId: string, resourceId: string): PlantState {
   const operation = requireOperation(state, operationId);
   if (operation.status !== 'ready') {
@@ -192,49 +217,115 @@ export function startOperation(state: PlantState, operationId: string, resourceI
   if (resourceDown(state, resource.id, state.now)) {
     throw new Error('Ресурс в простое.');
   }
-  const busy = state.operations.some((item) => item.resourceId === resource.id && item.status === 'running');
-  if (busy) {
-    throw new Error('Ресурс уже занят. Станок и печь ведутся очередью, человек — одной работой.');
-  }
-  if (resource.kind === 'furnaces') {
-    if (resource.chargePieces === null) {
-      throw new Error('У печи не задана садка.');
+  const sitting = state.operations.filter((item) => item.resourceId === resource.id && item.status === 'running');
+  if (resource.chargePieces === null) {
+    if (sitting.length > 0) {
+      throw new Error('Ресурс уже занят. Станок и человек ведутся одной работой.');
     }
+  } else {
     if (operation.planned > resource.chargePieces) {
       throw new Error('Партия больше садки. Деление нужно до посадки в печь.');
+    }
+    const occupied = sitting.reduce((sum, item) => sum + chargeSeats(state, item.id), 0);
+    if (occupied + chargeSeats(state, operation.id) > resource.chargePieces) {
+      throw new Error('В садке нет места. Печь ждёт окончания общей садки.');
     }
   }
   return {
     ...state,
     operations: state.operations.map((item) =>
-      item.id === operation.id ? { ...item, status: 'running', resourceId: resource.id, startedAt: state.now } : item,
+      item.id === operation.id
+        ? {
+            ...item,
+            status: 'running',
+            resourceId: resource.id,
+            startedAt: item.startedAt ?? state.now,
+          }
+        : item,
     ),
   };
 }
 
+function deliver(operations: readonly PlantOperation[], source: PlantOperation, good: Pieces, batch: PlantBatch, now: SimInstant): PlantOperation[] {
+  const next = operations.find((item) => item.batchId === source.batchId && item.sequence === source.sequence + 1);
+  if (!next || good === 0) {
+    return [...operations];
+  }
+  const planned = pieces(next.planned + good);
+  if (next.status === 'running') {
+    return operations.map((item) => (item.id === next.id ? { ...item, planned } : item));
+  }
+  if (next.status === 'done') {
+    return operations.map((item) =>
+      item.id === next.id ? { ...item, planned, status: 'ready' as const, missing: [] } : item,
+    );
+  }
+  const opened = gate(batch, next.sequence, true, planned, now);
+  return operations.map((item) =>
+    item.id === next.id
+      ? {
+          ...item,
+          planned,
+          status: opened.status,
+          missing: opened.missing,
+          readyAt: item.readyAt ?? opened.readyAt,
+        }
+      : item,
+  );
+}
+
+/**
+ * Закрытие порцией. `done` и `scrap` — штуки этой порции, не новый итог.
+ * Годное уходит на следующую операцию сразу. Моменты готовности и старта не двигаются.
+ */
 export function completeOperation(state: PlantState, operationId: string, done: Pieces, scrap: Pieces): PlantState {
   const operation = requireOperation(state, operationId);
   if (operation.status !== 'running') {
     throw new Error('Закрывается только начатая операция.');
   }
-  if (done !== operation.planned) {
-    throw new Error('В ядре v1 операция закрывается целиком.');
+  if (done <= 0) {
+    throw new Error('Закрытие пустой порции не выполняется.');
+  }
+  if (operation.done + done > operation.planned) {
+    throw new Error('Закрытие больше плана.');
   }
   const good = transferred(done, scrap);
-  const batch = requireBatch(state, operation.batchId);
+  const nextDone = pieces(operation.done + done);
+  const nextScrap = pieces(operation.scrap + scrap);
+  const finished = nextDone === operation.planned;
   let operations = state.operations.map((item) =>
-    item.id === operation.id ? { ...item, status: 'done' as const, done, scrap } : item,
+    item.id === operation.id
+      ? { ...item, status: finished ? ('done' as const) : ('running' as const), done: nextDone, scrap: nextScrap }
+      : item,
   );
-  const next = operations.find((item) => item.batchId === operation.batchId && item.sequence === operation.sequence + 1);
-  if (next) {
-    const opened = gate(batch, next.sequence, true, good, state.now);
-    operations = operations.map((item) =>
-      item.id === next.id
-        ? { ...item, planned: good, status: opened.status, missing: opened.missing, readyAt: opened.readyAt }
-        : item,
-    );
-  }
+  const batch = requireBatch(state, operation.batchId);
+  operations = deliver(operations, operation, good, batch, state.now);
   return { ...state, operations };
+}
+
+/**
+ * Отрыв по ведомости дефекта после того, как контроль нашёл брак.
+ * Потомок не идёт в маршрут заново: пересдача брака в производство сюда не входит.
+ * Количество потомка равно найденному браку и в сумму штук отдельно не входит.
+ */
+export function recordDefect(state: PlantState, parentId: string, childId: string, childQty: Pieces): PlantState {
+  const parent = requireBatch(state, parentId);
+  if (state.batches.some((batch) => batch.id === childId)) {
+    throw new Error(`Партия «${childId}» уже есть.`);
+  }
+  const split = applyTearOff(parent.qty, childQty, 'defect-sheet');
+  const child: PlantBatch = {
+    id: childId,
+    partId: parent.partId,
+    qty: split.childQty,
+    parentId: parent.id,
+    tearOff: 'defect-sheet',
+    countsApart: split.childCountsApart,
+    materialReady: parent.materialReady,
+    designDocReady: parent.designDocReady,
+    operationIds: [],
+  };
+  return { ...state, batches: [...state.batches, child] };
 }
 
 /** Склад ГП не занимает станок. Приёмка возможна, когда предыдущая операция сдана. */
@@ -245,6 +336,9 @@ export function receiveToWarehouse(state: PlantState, operationId: string): Plan
     throw new Error('На склад принимается только операция склада ГП.');
   }
   if (operation.status !== 'ready') {
+    throw new Error('Склад принимает только готовую передачу.');
+  }
+  if (operation.planned <= operation.done) {
     throw new Error('Склад принимает только готовую передачу.');
   }
   return {

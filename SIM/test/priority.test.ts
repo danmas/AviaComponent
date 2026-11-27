@@ -47,21 +47,25 @@ test('решение не переписывает прошлое', () => {
   }
 });
 
-test('решение меняет будущее: batch-3 обгоняет batch-2', () => {
+test('решение меняет будущее: batch-5 обгоняет batch-2 на слесарной', () => {
+  // К минуте решения batch-2 и batch-5 уже сидят в одной садке.
+  // Ранг садку не разнимает. Слесарная — один человек, и здесь порядок меняется.
   const base = cleanRun();
-  const pushed = cleanRun([{ batchId: 'batch-3', rank: 0, appliedAt: DECISION_AT }]);
-  const firstAfter = (result: ReturnType<typeof cleanRun>) =>
-    result.report.shopCompletions
-      .filter((c) => c.at >= DECISION_AT && (c.operationId.startsWith('batch-2') || c.operationId.startsWith('batch-3')))
-      .map((c) => c.operationId)[0];
-  assert.ok(firstAfter(base)?.startsWith('batch-2'), 'в базе первой в окне идёт не batch-2');
-  assert.ok(firstAfter(pushed)?.startsWith('batch-3'), 'после решения batch-3 не обогнал batch-2');
-
-  // batch-3-op-2 в базе за горизонт не закрывается вовсе, в решении — закрывается
-  const closes = (result: ReturnType<typeof cleanRun>, op: string) =>
-    result.report.shopCompletions.some((c) => c.operationId === op);
-  assert.equal(closes(base, 'batch-3-op-2'), false);
-  assert.equal(closes(pushed, 'batch-3-op-2'), true);
+  const pushed = cleanRun([{ batchId: 'batch-5', rank: 0, appliedAt: DECISION_AT }]);
+  const atOf = (result: ReturnType<typeof cleanRun>, operationId: string) =>
+    result.report.shopCompletions.find((completion) => completion.operationId === operationId)?.at;
+  assert.equal(atOf(base, 'batch-2-op-2'), atOf(base, 'batch-5-op-2'), 'в базе партии сидят в одной садке');
+  assert.equal(atOf(pushed, 'batch-2-op-2'), atOf(base, 'batch-2-op-2'), 'ранг сдвинул уже посаженную садку');
+  assert.equal(atOf(pushed, 'batch-5-op-2'), atOf(base, 'batch-5-op-2'), 'ранг сдвинул уже посаженную садку');
+  const baseBench2 = atOf(base, 'batch-2-op-3');
+  const baseBench5 = atOf(base, 'batch-5-op-3');
+  const pushedBench2 = atOf(pushed, 'batch-2-op-3');
+  const pushedBench5 = atOf(pushed, 'batch-5-op-3');
+  assert.ok(baseBench2 !== undefined && baseBench5 !== undefined && baseBench2 < baseBench5, 'в базе слесарную первой берёт batch-2');
+  assert.ok(
+    pushedBench2 !== undefined && pushedBench5 !== undefined && pushedBench5 < pushedBench2,
+    'после решения слесарную первой берёт batch-5',
+  );
 });
 
 test('решение не ускоряет ресурс', () => {
@@ -99,8 +103,8 @@ test('прогон с решениями детерминирован', () => {
 test('повторный ранг перекрывает прежний с этого момента', () => {
   const at = 4 * SHIFT_MINUTES;
   const competitor = { batchId: 'batch-2', rank: 5, appliedAt: at };
-  const best = { batchId: 'batch-3', rank: 0, appliedAt: at };
-  const worse = { batchId: 'batch-3', rank: 9, appliedAt: at };
+  const best = { batchId: 'batch-5', rank: 0, appliedAt: at };
+  const worse = { batchId: 'batch-5', rank: 9, appliedAt: at };
   const onlyBest = cleanRun([competitor, best]);
   const onlyWorse = cleanRun([competitor, worse]);
   const shadowed = cleanRun([competitor, best, worse]);

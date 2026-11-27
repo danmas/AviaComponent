@@ -151,3 +151,43 @@ export function goodPieces(operation: PlantOperation): Pieces {
   }
   return pieces(operation.done - operation.scrap);
 }
+
+export interface FurnaceCharge {
+  readonly resourceId: string;
+  readonly occupied: number;
+  readonly capacity: number;
+  readonly free: number;
+  readonly batchIds: readonly string[];
+  /** Строка среза: «занято 8 из 8». */
+  readonly line: string;
+}
+
+/** Сколько штук сидит в садке. Считается из среза, отдельной записи нет. */
+export function furnaceCharges(state: PlantState): readonly FurnaceCharge[] {
+  const charges: FurnaceCharge[] = [];
+  for (const resource of state.resources) {
+    if (resource.chargePieces === null) {
+      continue;
+    }
+    const sitting = state.operations.filter(
+      (operation) => operation.resourceId === resource.id && operation.status === 'running',
+    );
+    const occupied = sitting.reduce((sum, operation) => sum + operation.planned, 0);
+    const batchIds = sitting.map((operation) => operation.batchId);
+    charges.push({
+      resourceId: resource.id,
+      occupied,
+      capacity: resource.chargePieces,
+      free: resource.chargePieces - occupied,
+      batchIds,
+      line: `занято ${occupied} из ${resource.chargePieces}`,
+    });
+  }
+  return charges;
+}
+
+/** Строка среза по операции: сделанное и годное отдельно от плана. */
+export function progressLine(operation: PlantOperation): string {
+  const good = operation.scrap > operation.done ? 0 : operation.done - operation.scrap;
+  return `сделано ${operation.done} из ${operation.planned}, годное ${good}`;
+}

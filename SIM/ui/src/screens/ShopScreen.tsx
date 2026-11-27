@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ShopResponse } from '../../../api-client/types.ts';
 import { createClient } from '../../../api-client/client.ts';
-import { areasOf, movementBetween, statusCounts, tracksOf } from '../lib/shop.ts';
+import { areasOf, chargeText, movementBetween, progressText, statusCounts, tracksOf } from '../lib/shop.ts';
 import { downtimeText, missingLine, STATUS_TEXT } from '../lib/missing.ts';
 import { screenParams } from '../lib/params.ts';
 import { flowOf, hoursOf, waitMinutes } from '../lib/flow.ts';
@@ -69,7 +69,7 @@ function OperationLine(props: {
       <span className="op-resource">{props.resource ?? '—'}</span>
       <span className="op-status">{STATUS_TEXT[props.status as keyof typeof STATUS_TEXT] ?? props.status}</span>
       <span className="op-count">
-        {props.done}/{props.planned}
+        {progressText(props.done, props.planned, props.scrap)}
         {props.scrap > 0 ? ` · брак ${props.scrap}` : ''}
       </span>
       {props.reason !== undefined && props.reason !== '' ? <span className="op-reason">{props.reason}</span> : null}
@@ -258,6 +258,15 @@ export function ShopScreen(): JSX.Element {
               {area.name}
               <span className="area-kind">{area.kind === 'warehouse' ? 'склад' : area.resources.map((r) => r.kind).join(', ')}</span>
             </h2>
+
+            {area.resources.map((resource) => {
+              const line = chargeText(resource.chargePieces, area.running);
+              return line === null ? null : (
+                <div key={resource.id} className="charge">
+                  садка: {line}
+                </div>
+              );
+            })}
 
             {area.down.length > 0 ? (
               <div className="down">

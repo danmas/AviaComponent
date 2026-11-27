@@ -103,7 +103,7 @@ test('число на связи равно очереди участка-ист
   const flow = flowOf(shop);
   for (const link of flow.links) {
     const source = flow.nodes.find((node: { id: string }) => node.id === link.from);
-    assert.notEqual(source, undefined);
+    assert.ok(source, `узел ${link.from} есть на схеме`);
     assert.equal(
       link.waitingCount,
       source.waiting.length,
@@ -124,16 +124,13 @@ test('узкое место там, где самое долгое ожидан�
 });
 
 test('позже узкое место переезжает туда, где копится ожидание', async () => {
-  // На смене 10 печь разгружена, ждёт только слесарная — узкое место она.
-  const shop = await shopAt(10);
+  // После совместной садки печь держит очередь на сменах 1–3.
+  // На смене 4 ждёт слесарная: узкое место ушло с термообработки.
+  const shop = await shopAt(4);
   const flow = flowOf(shop);
+  assert.equal(flow.bottleneckId, 'area-bench', 'на смене 4 узкое место — слесарная');
   const waitingNodes = flow.nodes.filter((node: { waiting: readonly unknown[] }) => node.waiting.length > 0);
-  assert.ok(waitingNodes.length > 0, 'на смене 10 что-то ждёт');
-  assert.equal(
-    flow.bottleneckId,
-    waitingNodes[0].id,
-    'узкое место — единственный участок с очередью',
-  );
+  assert.ok(waitingNodes.length > 0, 'на смене 4 что-то ждёт');
 });
 
 test('свободный участок остаётся в схеме', async () => {

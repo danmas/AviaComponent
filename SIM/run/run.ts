@@ -5,7 +5,7 @@ import { pieces } from '../contract/quantity.ts';
 import { assertStandInSpec, CONTRACT_STAND } from '../contract/stand.ts';
 import { inShift, instant, SHIFT_MINUTES, shiftWindow, type SimInstant } from '../contract/time.ts';
 import { quantity, type AnyQuantity, type UnitKind } from '../contract/units.ts';
-import { launchBatch, tearOffBatch } from '../plant/batch.ts';
+import { launchBatch } from '../plant/batch.ts';
 import { MACHINE_MTBF_BUSY_MINUTES, REPAIR_MINUTES, runShop, type PriorityOrder, type ShopCompletion, type ShopStart } from '../plant/engine.ts';
 import { occupationMinutes } from '../plant/occupation.ts';
 import { ROUTE, type RouteStep } from '../plant/stand.ts';
@@ -26,17 +26,16 @@ import {
   BREAKDOWN_RESOURCE,
   BREAKDOWN_UNTIL,
   ordersFor,
-  SCRAP_CHILD,
-  SCRAP_CHILD_PIECES,
-  SCRAP_OPERATION,
-  SCRAP_PARENT,
-  SCRAP_PIECES,
   type StandOrder,
 } from './catalog.ts';
 import { disciplineDecision, EXPECTED, LEVEL_RULES, type LevelName, type OverlayName } from './levels.ts';
 
 const ORDER_NORM_HOURS = 6;
 const OPERATION_NORM_HOURS = 1;
+
+/** Замер до правил цеха: отчёт clean/none, seed 42, 37 записей. */
+const COMPLETION_BASELINE_BYTES = 9300;
+const COMPLETION_GROWTH_LIMIT = 3;
 
 interface StepRef {
   readonly sequence: number;
@@ -149,6 +148,33 @@ function byText(left: string, right: string): number {
   return 0;
 }
 
+export function groupCompletions<T extends {
+  readonly operationId: string;
+  readonly at: number;
+  readonly done: number;
+  readonly scrap: number;
+  readonly warehouse: boolean;
+}>(rows: readonly T[]): T[] {
+  const grouped = new Map<string, T>();
+  for (const row of rows) {
+    const prev = grouped.get(row.operationId);
+    if (prev === undefined) {
+      grouped.set(row.operationId, { ...row });
+      continue;
+    }
+    grouped.set(row.operationId, {
+      ...prev,
+      at: Math.max(prev.at, row.at),
+      done: prev.done + row.done,
+      scrap: prev.scrap + row.scrap,
+      warehouse: prev.warehouse || row.warehouse,
+    });
+  }
+  return [...grouped.values()].sort(
+    (left, right) => left.at - right.at || byText(left.operationId, right.operationId),
+  );
+}
+
 function orderStatus(order: StandOrder): OrderRecord['status'] {
   return order.material && order.designDoc && order.norms ? 'in-production' : 'dse';
 }
@@ -258,13 +284,6 @@ export function runStand(input: {
       dueByBatch.set(batchId, order.contractDue);
     }
   }
-  const scrapByOperation = new Map<string, number>();
-  if (input.overlay === 'scrap') {
-    shop = tearOffBatch(shop, SCRAP_PARENT, SCRAP_CHILD, pieces(SCRAP_CHILD_PIECES), 'defect-sheet');
-    const parentDue = dueByBatch.get(SCRAP_PARENT);
-    dueByBatch.set(SCRAP_CHILD, parentDue === undefined ? null : parentDue);
-    scrapByOperation.set(SCRAP_OPERATION, SCRAP_PIECES);
-  }
   if (input.overlay === 'breakdown') {
     shop = addDowntime(shop, {
       id: 'scripted-breakdown',
@@ -276,11 +295,13 @@ export function runStand(input: {
   }
 
   const rng = createRng(input.seed);
+  const controlRng = createRng(input.seed);
   const shopRun = runShop({
     shop,
     dueByBatch,
-    scrapByOperation,
     rng,
+    controlRng,
+    controlEnabled: input.overlay === 'scrap',
     horizonShifts: horizon,
     ...(input.priority === undefined ? {} : { priority: input.priority }),
   });
@@ -291,10 +312,6 @@ export function runStand(input: {
       batchOrder.set(batchId, order.id);
     }
   }
-  if (input.overlay === 'scrap') {
-    batchOrder.set(SCRAP_CHILD, 'order-1');
-  }
-
   function orderIdOf(batchId: string): string {
     const orderId = batchOrder.get(batchId);
     if (!orderId) {
@@ -308,6 +325,9 @@ export function runStand(input: {
   const notes: { operationId: string; note: 'paper' | 'skip'; at: number }[] = [];
 
   for (const completion of shopRun.completions) {
+    if (!completion.final) {
+      continue;
+    }
     if (completion.warehouse) {
       accept({
         version: 1,
@@ -329,8 +349,8 @@ export function runStand(input: {
     const outcome = markByDiscipline({
       operationId: completion.operationId,
       trueTime: instant(completion.at),
-      piecesDone: completion.done,
-      piecesScrap: completion.scrap,
+      piecesDone: completion.cumulativeDone,
+      piecesScrap: completion.cumulativeScrap,
       discipline: decision.discipline,
     });
     if (outcome.systemEvent === null) {
@@ -350,7 +370,7 @@ export function runStand(input: {
       technology: null,
       production: null,
       control: null,
-      totals: { done: pieces(completion.done), scrap: pieces(completion.scrap) },
+      totals: { done: pieces(completion.cumulativeDone), scrap: pieces(completion.cumulativeScrap) },
     });
   }
 
@@ -496,7 +516,7 @@ export function runStand(input: {
     ...new Set(shopRun.completions.filter((completion) => completion.warehouse).map((completion) => orderIdOf(completion.batchId))),
   ].sort(byText);
 
-  const report = buildReport({
+  let report = buildReport({
     horizonShifts: horizon,
     seed: input.seed,
     level: input.level,
@@ -515,9 +535,18 @@ export function runStand(input: {
     metrics,
   });
 
+  let reportJson = JSON.stringify(report);
+  if (reportJson.length > COMPLETION_BASELINE_BYTES * COMPLETION_GROWTH_LIMIT) {
+    report = {
+      ...report,
+      shopCompletions: groupCompletions(report.shopCompletions),
+    };
+    reportJson = JSON.stringify(report);
+  }
+
   return {
     report,
-    reportJson: JSON.stringify(report),
+    reportJson,
     shop: shopRun.shop,
     records,
     snapshots,

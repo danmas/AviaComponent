@@ -1,8 +1,9 @@
 import { pieces } from '../contract/quantity.ts';
 import type { Rng } from '../contract/rng.ts';
 import { instant, SHIFT_MINUTES, type SimInstant } from '../contract/time.ts';
-import { completeOperation, receiveToWarehouse, startOperation } from './batch.ts';
+import { chargeSeats, completeOperation, receiveToWarehouse, recordDefect, startOperation } from './batch.ts';
 import { occupationMinutes } from './occupation.ts';
+import { areaDecidesFitness, controlScrapFor } from './stand.ts';
 import {
   addDowntime,
   at,
@@ -29,8 +30,13 @@ export interface ShopCompletion {
   readonly areaId: string;
   readonly resourceId: string | null;
   readonly at: number;
+  /** Штуки этой порции, не накопительный итог. */
   readonly done: number;
   readonly scrap: number;
+  readonly cumulativeDone: number;
+  readonly cumulativeScrap: number;
+  /** Порция, после которой операция закрыта и предыдущая больше ничего не пришлёт. */
+  readonly final: boolean;
   readonly warehouse: boolean;
 }
 
@@ -63,8 +69,12 @@ export interface PriorityOrder {
 export interface ShopRunInput {
   readonly shop: PlantState;
   readonly dueByBatch: ReadonlyMap<string, number | null>;
-  readonly scrapByOperation: ReadonlyMap<string, number>;
+  /** Генератор отказов станков. Контроль его не трогает. */
   readonly rng: Rng;
+  /** Отдельная последовательность из того же seed. Только годность на контроле. */
+  readonly controlRng: Rng;
+  /** Помеха брака. Без неё контроль брак не назначает и генератор не расходует. */
+  readonly controlEnabled: boolean;
   readonly horizonShifts: number;
   /** Решения о приоритете. Пустой список — очередь сортируется как до этого изменения. */
   readonly priority?: readonly PriorityOrder[];
@@ -75,6 +85,11 @@ interface Job {
   readonly resourceId: string;
   readonly startedAt: number;
   readonly finishAt: number;
+  /** Штуки этой порции. null — закрыть всё, что осталось к моменту finishAt. */
+  readonly closePieces: number | null;
+  /** false — середина операции, ресурс остаётся занят до finalAt. */
+  readonly release: boolean;
+  readonly finalAt: number;
 }
 
 function drawBusyMinute(rng: Rng, mean: number): number {
@@ -101,7 +116,8 @@ function byId(left: string, right: string): number {
 
 /**
  * Физический прогон цеха. Записи Системы не читает и не пишет.
- * Генератор здесь тратится только на отказы станков, в порядке маршрута.
+ * Генератор отказов тратится только на поломки станков, в порядке маршрута.
+ * Годность на контроле берётся из отдельного генератора и эту последовательность не сдвигает.
  */
 export function runShop(input: ShopRunInput): ShopRun {
   if (input.shop.now !== 0) {
@@ -198,37 +214,77 @@ export function runShop(input: ShopRunInput): ShopRun {
     readyAtShift.push({ index, operationIds });
   }
 
+  function controlScrap(operation: PlantOperation, portion: number, release: boolean): number {
+    if (!input.controlEnabled || !areaDecidesFitness(operation.areaId)) {
+      return 0;
+    }
+    const draw = input.controlRng();
+    if (!release) {
+      return 0;
+    }
+    return controlScrapFor(draw, portion);
+  }
+
   function completeDue(now: number): void {
     const due = jobs
       .filter((job) => job.finishAt === now)
       .sort((left, right) => byId(left.operationId, right.operationId));
     for (const job of due) {
       const current = requireOperation(job.operationId);
-      const scrap = input.scrapByOperation.get(job.operationId) ?? 0;
-      if (!Number.isInteger(scrap) || scrap < 0 || scrap > current.planned) {
-        throw new Error(`Брак операции «${job.operationId}» вне планового количества.`);
+      const remaining = current.planned - current.done;
+      const portion = job.closePieces === null ? remaining : job.closePieces;
+      if (!Number.isInteger(portion) || portion <= 0 || portion > remaining) {
+        throw new Error(`Порция операции «${job.operationId}» вне оставшегося количества.`);
       }
-      shop = completeOperation(shop, job.operationId, current.planned, pieces(scrap));
-      const index = jobs.findIndex((item) => item.operationId === job.operationId);
+      const release = job.release || portion === remaining;
+      const scrap = controlScrap(current, portion, release);
+      if (scrap > portion) {
+        throw new Error(`Брак операции «${job.operationId}» больше порции.`);
+      }
+      shop = completeOperation(shop, job.operationId, pieces(portion), pieces(scrap));
+      const index = jobs.findIndex((item) => item.operationId === job.operationId && item.finishAt === job.finishAt);
       if (index < 0) {
         throw new Error(`Работа «${job.operationId}» уже снята.`);
       }
       jobs.splice(index, 1);
+      const updated = requireOperation(job.operationId);
+      const final = updated.status === 'done';
       completions.push({
         operationId: job.operationId,
-        batchId: current.batchId,
-        areaId: current.areaId,
+        batchId: updated.batchId,
+        areaId: updated.areaId,
         resourceId: job.resourceId,
         at: now,
-        done: current.planned,
+        done: portion,
         scrap,
+        cumulativeDone: updated.done,
+        cumulativeScrap: updated.scrap,
+        final,
         warehouse: false,
       });
+      if (final && scrap > 0 && areaDecidesFitness(updated.areaId)) {
+        shop = recordDefect(shop, updated.batchId, `${updated.batchId}-defect-${updated.sequence}`, pieces(scrap));
+      }
+      if (updated.status === 'running') {
+        if (release || job.finalAt <= now) {
+          throw new Error(`Операция «${job.operationId}» не закрылась и не оставила хвост.`);
+        }
+        jobs.push({
+          operationId: job.operationId,
+          resourceId: job.resourceId,
+          startedAt: job.startedAt,
+          finishAt: job.finalAt,
+          closePieces: null,
+          release: true,
+          finalAt: job.finalAt,
+        });
+        continue;
+      }
       const resource = shop.resources.find((item) => item.id === job.resourceId);
       if (resource?.kind !== 'machines') {
         continue;
       }
-      const spent = (busy.get(job.resourceId) ?? 0) + (job.finishAt - job.startedAt);
+      const spent = (busy.get(job.resourceId) ?? 0) + (job.finalAt - job.startedAt);
       busy.set(job.resourceId, spent);
       const limit = failureAt.get(job.resourceId);
       if (limit === undefined || repairOpened.has(job.resourceId) || spent < limit) {
@@ -261,16 +317,23 @@ export function runShop(input: ShopRunInput): ShopRun {
       if (!next) {
         return;
       }
-      const planned = next.planned;
+      const portion = next.planned - next.done;
+      const upstream = shop.operations.find(
+        (item) => item.batchId === next.batchId && item.sequence === next.sequence - 1,
+      );
       shop = receiveToWarehouse(shop, next.id);
+      const accepted = requireOperation(next.id);
       completions.push({
         operationId: next.id,
         batchId: next.batchId,
         areaId: next.areaId,
         resourceId: null,
         at: now,
-        done: planned,
+        done: portion,
         scrap: 0,
+        cumulativeDone: accepted.done,
+        cumulativeScrap: accepted.scrap,
+        final: upstream === undefined || upstream.status === 'done',
         warehouse: true,
       });
       guard += 1;
@@ -280,40 +343,84 @@ export function runShop(input: ShopRunInput): ShopRun {
     }
   }
 
+  function place(operation: PlantOperation, resourceId: string, now: number, finishAt: number, closePieces: number | null, release: boolean, finalAt: number): void {
+    shop = startOperation(shop, operation.id, resourceId);
+    jobs.push({
+      operationId: operation.id,
+      resourceId,
+      startedAt: now,
+      finishAt,
+      closePieces,
+      release,
+      finalAt,
+    });
+    starts.push({ operationId: operation.id, resourceId, at: now });
+  }
+
   function startResources(now: number): void {
     for (const resource of shop.resources) {
       if (resourceDown(shop, resource.id, instant(now))) {
         continue;
       }
-      if (shop.operations.some((item) => item.resourceId === resource.id && item.status === 'running')) {
-        continue;
-      }
       const candidates = shop.operations
         .filter((item) => item.status === 'ready' && item.areaId === resource.areaId)
         .sort((left, right) => compareReady(left, right, now));
+      if (resource.chargePieces === null) {
+        if (shop.operations.some((item) => item.resourceId === resource.id && item.status === 'running')) {
+          continue;
+        }
+        for (const candidate of candidates) {
+          const duration = occupationMinutes(candidate.effort);
+          if (duration <= 0) {
+            throw new Error(`У операции «${candidate.id}» нет длительности.`);
+          }
+          if (resource.kind === 'personnel') {
+            const shiftEnd = (Math.floor(now / SHIFT_MINUTES) + 1) * SHIFT_MINUTES;
+            if (now + duration > shiftEnd) {
+              continue;
+            }
+          }
+          if (resource.kind === 'cooperation') {
+            throw new Error('Кооперации на маршруте стенда нет.');
+          }
+          const halfPieces = Math.floor(candidate.planned / 2);
+          const halfTime = Math.floor(duration / 2);
+          if (halfPieces >= 1 && halfPieces < candidate.planned && halfTime >= 1 && halfTime < duration) {
+            place(candidate, resource.id, now, now + halfTime, halfPieces, false, now + duration);
+          } else {
+            place(candidate, resource.id, now, now + duration, null, true, now + duration);
+          }
+          break;
+        }
+        continue;
+      }
+      let occupied = shop.operations
+        .filter((item) => item.resourceId === resource.id && item.status === 'running')
+        .reduce((sum, item) => sum + chargeSeats(shop, item.id), 0);
+      let chargeEnd: number | null = null;
+      for (const job of jobs) {
+        if (job.resourceId !== resource.id) {
+          continue;
+        }
+        if (chargeEnd === null || job.finalAt > chargeEnd) {
+          chargeEnd = job.finalAt;
+        }
+      }
       for (const candidate of candidates) {
+        const seats = chargeSeats(shop, candidate.id);
+        if (occupied + seats > resource.chargePieces) {
+          break;
+        }
         const duration = occupationMinutes(candidate.effort);
         if (duration <= 0) {
           throw new Error(`У операции «${candidate.id}» нет длительности.`);
         }
-        if (resource.kind === 'personnel') {
-          const shiftEnd = (Math.floor(now / SHIFT_MINUTES) + 1) * SHIFT_MINUTES;
-          if (now + duration > shiftEnd) {
-            continue;
-          }
+        const finish = chargeEnd ?? now + duration;
+        place(candidate, resource.id, now, finish, null, true, finish);
+        if (chargeEnd === null) {
+          chargeEnd = finish;
         }
-        if (resource.kind === 'cooperation') {
-          throw new Error('Кооперации на маршруте стенда нет.');
-        }
-        shop = startOperation(shop, candidate.id, resource.id);
-        jobs.push({
-          operationId: candidate.id,
-          resourceId: resource.id,
-          startedAt: now,
-          finishAt: now + duration,
-        });
-        starts.push({ operationId: candidate.id, resourceId: resource.id, at: now });
-        break;
+        occupied += seats;
       }
     }
   }

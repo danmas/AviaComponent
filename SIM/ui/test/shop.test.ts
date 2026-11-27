@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { buildApp } from '../../api/server.ts';
 import { pathV1 } from '../../api/version.ts';
-import { areasOf, batchesOf, movementBetween, statusCounts, tracksOf } from '../src/lib/shop.ts';
+import { areasOf, batchesOf, chargeText, movementBetween, progressText, statusCounts, tracksOf } from '../src/lib/shop.ts';
 import { missingLine, missingReasons, downtimeText, STATUS_TEXT } from '../src/lib/missing.ts';
 
 type Shop = ReturnType<typeof areasOf> extends never ? never : any;
@@ -45,8 +45,9 @@ test('смена 0: шесть партий и сорок две операци�
   const counts = statusCounts(shop);
   assert.equal(Object.values(counts).reduce((a, b) => a + b, 0), 42);
   assert.equal(counts['done'], 5);
-  assert.equal(counts['running'], 1);
-  assert.equal(counts['ready'], 5);
+  // Две партии в печи и фрезерная, которая доделывает порцию.
+  assert.equal(counts['running'], 3);
+  assert.equal(counts['ready'], 4);
 });
 
 test('работающая операция несёт ресурс, ожидающая нет', async () => {
@@ -69,11 +70,22 @@ test('очередь на печи видна по партиям', async () => 
   if (heat === undefined) {
     return;
   }
-  assert.equal(heat.waiting.length, 4, 'на печи ожидают четыре партии');
-  assert.equal(heat.running.length, 1, 'на печи работает одна партия');
+  assert.equal(heat.waiting.length, 2, 'следующая садка — две партии');
+  assert.equal(heat.running.length, 2, 'в текущей садке две партии');
   assert.equal(heat.idle, false);
-  const batches = heat.waiting.map((operation: { batchId: string }) => operation.batchId);
-  assert.equal(new Set(batches).size, 4, 'ожидающие партии не повторяются');
+  const furnace = heat.resources.find((resource: { chargePieces: number | null }) => resource.chargePieces !== null);
+  assert.equal(
+    chargeText(furnace?.chargePieces ?? null, heat.running),
+    'занято 8 из 8 · batch-2, batch-5',
+  );
+});
+
+test('частичное выполнение видно отдельно от плана', async () => {
+  const shop = await shopAt(0);
+  const mill = areasOf(shop).find((area: { id: string }) => area.id === 'area-mill');
+  const running = mill?.running.find((operation: { id: string }) => operation.id === 'batch-2-op-1');
+  assert.ok(running, 'на смене 0 фрезерная ещё не закрыта');
+  assert.equal(progressText(running?.done ?? 0, running?.planned ?? 0, running?.scrap ?? 0), 'сделано 1 из 4, годное 1');
 });
 
 test('свободный участок не скрывается', async () => {

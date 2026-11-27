@@ -75,8 +75,13 @@ test('чистые, поздние и бумага оставляют один �
     assert.equal(note.note, 'paper');
     assert.equal(systemSeesOperation(paper.records, note.operationId), false);
   }
-  const lateProcessing = late.report.shopCompletions.filter((completion) => !completion.warehouse);
-  assert.equal(late.report.facts.length, lateProcessing.length);
+  // Факт пишется на закрытую операцию, а не на каждую порцию.
+  const lateOperations = new Set(
+    late.report.shopCompletions
+      .filter((completion) => !completion.warehouse)
+      .map((completion) => completion.operationId),
+  );
+  assert.equal(late.report.facts.length, lateOperations.size);
 });
 
 test('пустые поля не получают срок и не стартуют без материала', () => {
@@ -108,28 +113,61 @@ test('помехи не двигают долю дисциплины и MTBF', (
   assert.equal(broken.report.parameters.mtbfBusyMinutes, MACHINE_MTBF_BUSY_MINUTES);
   assert.equal(broken.report.parameters.mtbfBusyMinutes, plain.report.parameters.mtbfBusyMinutes);
   assert.ok(broken.report.downtimes.some((downtime) => downtime.id === 'scripted-breakdown'));
-  const parent = scrap.shop.batches.find((batch) => batch.id === 'batch-2');
-  const child = scrap.shop.batches.find((batch) => batch.id === 'batch-2d');
-  assert.ok(parent && child);
-  assert.equal(parent.qty, 4);
-  assert.equal(child.qty, 1);
-  assert.equal(child.countsApart, false);
-  assert.equal(summedPieces([parent, child]), 4);
-  assert.equal(scrap.shop.operations.find((operation) => operation.id === 'batch-1-op-1')?.planned, 3);
-  const card = scrap.records.cards.find((item) => item.operationId === 'batch-1-op-0');
-  assert.equal(card?.totals?.done, 4);
-  assert.equal(card?.totals?.scrap, 1);
+  const turn = scrap.shop.operations.find((operation) => operation.id === 'batch-1-op-0');
+  assert.equal(turn?.scrap, 0, 'токарная брак не задаёт');
+  assert.equal(scrap.shop.operations.find((operation) => operation.id === 'batch-1-op-1')?.planned, 4);
+  const found = scrap.shop.operations.filter(
+    (operation) => (operation.areaId === 'area-test' || operation.areaId === 'area-final') && operation.scrap > 0,
+  );
+  assert.ok(found.length > 0, 'брак возникает на контроле');
+  for (const operation of found) {
+    const child = scrap.shop.batches.find((batch) => batch.id === `${operation.batchId}-defect-${operation.sequence}`);
+    assert.ok(child, `нет отрыва по ведомости у ${operation.id}`);
+    assert.equal(child?.qty, operation.scrap);
+    assert.equal(child?.countsApart, false);
+    assert.equal(child?.tearOff, 'defect-sheet');
+    const parent = scrap.shop.batches.find((batch) => batch.id === operation.batchId);
+    assert.ok(parent);
+    assert.equal(summedPieces([parent, child]), parent?.qty);
+  }
 });
 
-test('печь одна, человек остаётся в смене, закрытие целиком', () => {
+test('печь держит общую садку, человек остаётся в смене', () => {
   const run = runStand({ seed: SEED, level: 'late', overlay: 'none' });
   const heat = run.starts.filter((start) => start.resourceId === 'area-heat-1').sort((left, right) => left.at - right.at);
   assert.ok(heat.length >= 2);
-  for (let index = 1; index < heat.length; index += 1) {
-    const previous = heat[index - 1];
-    const current = heat[index];
-    assert.ok(previous && current);
-    assert.ok(current.at >= previous.at + 1440);
+  const finishAt = new Map<string, number>();
+  for (const completion of run.report.shopCompletions) {
+    if (!completion.operationId.endsWith('-op-2')) {
+      continue;
+    }
+    const previous = finishAt.get(completion.operationId) ?? 0;
+    if (completion.at >= previous) {
+      finishAt.set(completion.operationId, completion.at);
+    }
+  }
+  const byEnd = new Map<number, number[]>();
+  for (const start of heat) {
+    const end = finishAt.get(start.operationId);
+    if (end === undefined) {
+      continue;
+    }
+    const group = byEnd.get(end) ?? [];
+    group.push(start.at);
+    byEnd.set(end, group);
+  }
+  const ends = [...byEnd.keys()].sort((left, right) => left - right);
+  assert.ok(ends.some((end) => (byEnd.get(end) ?? []).length >= 2), 'хотя бы одна садка держит две партии');
+  for (const end of ends) {
+    const seated = byEnd.get(end) ?? [];
+    const first = Math.min(...seated);
+    assert.equal(end, first + 1440, 'садка закрывается через сутки после первой посадки');
+  }
+  for (let index = 1; index < ends.length; index += 1) {
+    const previousEnd = ends[index - 1] ?? 0;
+    const nextEnd = ends[index] ?? 0;
+    const nextSeated = byEnd.get(nextEnd) ?? [];
+    assert.ok(Math.min(...nextSeated) >= previousEnd, 'новая садка не начинается, пока предыдущая не закрыта');
   }
   const personnel = new Set(run.shop.resources.filter((resource) => resource.kind === 'personnel').map((resource) => resource.id));
   let personnelStarts = 0;
@@ -166,7 +204,9 @@ test('показатели не читают цех, знаменатель не
   void tweaked;
   assert.equal(JSON.stringify(fourMetrics(run.records, level, last)), before);
   const shopDone = processingDone(run.report);
-  assert.ok(shopDone > 0 && shopDone < EXPECTED.marks);
+  // Знаменатель — ожидаемые 36 отметок. Число записей закрытия больше:
+  // часть операций закрывается двумя порциями.
+  assert.ok(shopDone > EXPECTED.marks, 'хвост записей закрытия не совпал со знаменателем');
   let separated = false;
   for (let index = 0; index < CONTRACT_STAND.horizonShifts; index += 1) {
     const window = shiftWindow(index, CONTRACT_STAND.horizonShifts);
@@ -201,7 +241,7 @@ test('ёмкости стенда после прогона те же', () => {
   assert.equal(CONTRACT_STAND.orderCount, 4);
   assert.equal(CONTRACT_STAND.batchCount, 6);
   assert.equal(CONTRACT_STAND.routeLength, 7);
-  assert.equal(PLANT_STAND.furnaceChargePieces, 4);
+  assert.equal(PLANT_STAND.furnaceChargePieces, 8);
   assert.deepEqual(
     ROUTE.map((step) => (step.effort === null ? null : [step.effort.kind, step.effort.amount])),
     [

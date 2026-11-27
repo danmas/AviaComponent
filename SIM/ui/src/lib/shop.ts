@@ -138,6 +138,27 @@ export function movementBetween(before: Shop, after: Shop): readonly OperationCh
   return changes;
 }
 
+/** Строка садки из среза: занятые штуки, ёмкость и какие партии сидят. */
+export function chargeText(
+  chargePieces: number | null,
+  running: readonly { readonly planned: number; readonly batchId: string }[],
+): string | null {
+  if (chargePieces === null) {
+    return null;
+  }
+  const occupied = running.reduce((sum, operation) => sum + operation.planned, 0);
+  const free = chargePieces - occupied;
+  const names = running.map((operation) => operation.batchId).join(', ');
+  const room = free > 0 ? ` · свободно ${free}` : '';
+  const who = names === '' ? '' : ` · ${names}`;
+  return `занято ${occupied} из ${chargePieces}${room}${who}`;
+}
+
+/** Сделанное и годное отдельно от плана. */
+export function progressText(done: number, planned: number, scrap: number): string {
+  return `сделано ${done} из ${planned}, годное ${done - scrap}`;
+}
+
 /** Сколько операций в каждом статусе — для счётчика на экране. */
 export function statusCounts(shop: Shop): Record<OperationStatus, number> {
   const counts: Record<OperationStatus, number> = { 'not-ready': 0, ready: 0, running: 0, done: 0 };
