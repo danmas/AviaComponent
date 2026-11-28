@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "seed": 42,
+    "level": "clean",
+    "overlay": "incoming",
+    "horizonShifts": 12,
+    "shiftMinutes": 720
+  },
+  "events": [
+    {
+      "at": 0,
+      "type": "order-registered",
+      "orderId": "order-1",
+      "dueShift": 10
+    },
+    {
+      "at": 0,
+      "type": "batch-appeared",
+      "batchId": "batch-1",
+      "orderId": "order-1",
+      "appearedAt": 0,
+      "qty": 4
+    },
+    {
+      "at": 0,
+      "type": "operation-ready",
+      "operationId": "batch-1-op-0",
+      "batchId": "batch-1",
+      "areaId": "area-cnc-turn",
+      "readyAt": 0
+    },
+    {
+      "at": 40,
+      "type": "operation-started",
+      "operationId": "batch-1-op-0",
+      "batchId": "batch-1",
+      "areaId": "area-cnc-turn",
+      "startedAt": 40
+    },
+    {
+      "at": 180,
+      "type": "operation-completed",
+      "operationId": "batch-1-op-0",
+      "batchId": "batch-1",
+      "done": 4,
+      "good": 4
+    },
+    {
+      "at": 180,
+      "type": "operation-ready",
+      "operationId": "batch-1-op-1",
+      "batchId": "batch-1",
+      "areaId": "area-mill",
+      "readyAt": 180
+    },
+    {
+      "at": 2880,
+      "type": "order-registered",
+      "orderId": "order-new",
+      "dueShift": 6
+    },
+    {
+      "at": 2880,
+      "type": "batch-appeared",
+      "batchId": "batch-new",
+      "orderId": "order-new",
+      "appearedAt": 2880,
+      "qty": 4
+    },
+    {
+      "at": 3000,
+      "type": "decision-applied",
+      "decisionType": "priority",
+      "batchId": "batch-new",
+      "appliedAt": 3000,
+      "rank": 1
+    }
+  ],
+  "frames": [
+    {
+      "shift": 0,
+      "at": 0,
+      "metrics": {
+        "portfolio": { "value": 4, "coverage": 1.0 },
+        "overload": { "value": 1, "coverage": 0.8 },
+        "accepted": { "value": 0, "coverage": 1.0 },
+        "risk": { "value": 1, "coverage": 0.7 }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "orderId": "order-1",
+          "areaId": "area-cnc-turn",
+          "status": "running",
+          "waitingMinutes": 40
+        }
+      ]
+    },
+    {
+      "shift": 4,
+      "at": 2880,
+      "metrics": {
+        "portfolio": { "value": 5, "coverage": 0.8 },
+        "overload": { "value": 2, "coverage": 0.75 },
+        "accepted": { "value": 12, "coverage": 0.9 },
+        "risk": { "value": 2, "coverage": 0.6 }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "orderId": "order-1",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitingMinutes": 620
+        },
+        {
+          "batchId": "batch-new",
+          "orderId": "order-new",
+          "areaId": "area-cnc-turn",
+          "status": "ready",
+          "waitingMinutes": 0
+        }
+      ]
+    }
+  ]
+}
