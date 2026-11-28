@@ -4,14 +4,15 @@
     "level": "clean",
     "overlay": "incoming",
     "horizonShifts": 12,
-    "shiftMinutes": 720
+    "shiftMinutes": 720,
+    "note": "Числа модельные. Структура и ключи — реальные, из срезов прогона."
   },
   "events": [
     {
       "at": 0,
       "type": "order-registered",
       "orderId": "order-1",
-      "dueShift": 10
+      "contractDue": 6480
     },
     {
       "at": 0,
@@ -56,24 +57,40 @@
     {
       "at": 2880,
       "type": "order-registered",
-      "orderId": "order-new",
-      "dueShift": 6
+      "orderId": "order-5",
+      "contractDue": 4320
     },
     {
       "at": 2880,
       "type": "batch-appeared",
-      "batchId": "batch-new",
-      "orderId": "order-new",
+      "batchId": "batch-7",
+      "orderId": "order-5",
       "appearedAt": 2880,
       "qty": 4
     },
     {
-      "at": 3000,
+      "at": 2880,
+      "type": "decision-applied",
+      "decisionType": "accept-order",
+      "batchId": "batch-7",
+      "appliedAt": 2880,
+      "rank": null
+    },
+    {
+      "at": 2880,
       "type": "decision-applied",
       "decisionType": "priority",
-      "batchId": "batch-new",
-      "appliedAt": 3000,
-      "rank": 1
+      "batchId": "batch-7",
+      "appliedAt": 2880,
+      "rank": 0
+    },
+    {
+      "at": 2880,
+      "type": "operation-ready",
+      "operationId": "batch-7-op-0",
+      "batchId": "batch-7",
+      "areaId": "area-cnc-turn",
+      "readyAt": 2880
     }
   ],
   "frames": [
@@ -81,18 +98,335 @@
       "shift": 0,
       "at": 0,
       "metrics": {
-        "portfolio": { "value": 4, "coverage": 1.0 },
-        "overload": { "value": 1, "coverage": 0.8 },
-        "accepted": { "value": 0, "coverage": 1.0 },
-        "risk": { "value": 1, "coverage": 0.7 }
+        "portfolio": {
+          "value": {
+            "openCount": 4,
+            "remainderNormHours": 19,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 1,
+            "queueByUnit": [
+              {
+                "unit": "machine-hour",
+                "amount": 24
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 4,
+            "masterCloses": 4,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.1111111111111111
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 0,
+            "onTime": 4,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
       },
       "batches": [
         {
           "batchId": "batch-1",
-          "orderId": "order-1",
-          "areaId": "area-cnc-turn",
+          "areaId": "area-heat",
           "status": "running",
-          "waitingMinutes": 40
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-mill",
+          "status": "running",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-cnc-turn",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-cnc-turn",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-cnc-turn",
+          "status": "ready",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 1,
+      "at": 720,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 4,
+            "remainderNormHours": 13,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 3,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 2
+              },
+              {
+                "unit": "machine-hour",
+                "amount": 16
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 6,
+            "masterCloses": 6,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.16666666666666666
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 0,
+            "onTime": 4,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 240
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-mill",
+          "status": "running",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 480
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 2,
+      "at": 1440,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 4,
+            "remainderNormHours": 8,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 5
+              },
+              {
+                "unit": "machine-hour",
+                "amount": 4
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 6,
+            "masterCloses": 6,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.16666666666666666
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 0,
+            "onTime": 4,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-bench",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 720
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 480
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 240
+        }
+      ]
+    },
+    {
+      "shift": 3,
+      "at": 2160,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 4,
+            "remainderNormHours": 7,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 3,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 4
+              },
+              {
+                "unit": "person-hour",
+                "amount": 8
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 3,
+            "masterCloses": 3,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.08333333333333333
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 0,
+            "onTime": 4,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 1440
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 720
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 1200
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 960
         }
       ]
     },
@@ -100,25 +434,731 @@
       "shift": 4,
       "at": 2880,
       "metrics": {
-        "portfolio": { "value": 5, "coverage": 0.8 },
-        "overload": { "value": 2, "coverage": 0.75 },
-        "accepted": { "value": 12, "coverage": 0.9 },
-        "risk": { "value": 2, "coverage": 0.6 }
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 11,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 3,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 4
+              },
+              {
+                "unit": "machine-hour",
+                "amount": 4
+              },
+              {
+                "unit": "person-hour",
+                "amount": 2
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 6,
+            "masterCloses": 6,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.16666666666666666
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 1,
+            "onTime": 4,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
       },
       "batches": [
         {
           "batchId": "batch-1",
-          "orderId": "order-1",
-          "areaId": "area-heat",
-          "status": "ready",
-          "waitingMinutes": 620
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
         },
         {
-          "batchId": "batch-new",
-          "orderId": "order-new",
-          "areaId": "area-cnc-turn",
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 1440
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-bench",
           "status": "ready",
-          "waitingMinutes": 0
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 1680
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 5,
+      "at": 3600,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 9,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 4
+              },
+              {
+                "unit": "person-hour",
+                "amount": 2
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 2,
+            "masterCloses": 2,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.05555555555555555
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 2,
+            "onTime": 3,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "ready",
+          "waitedMinutes": 2160
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 2400
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 480
+        }
+      ]
+    },
+    {
+      "shift": 6,
+      "at": 4320,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 6,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 4
+              },
+              {
+                "unit": "person-hour",
+                "amount": 2
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 4,
+            "masterCloses": 4,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.1111111111111111
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 2,
+            "onTime": 3,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 2880
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-bench",
+          "status": "ready",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 7,
+      "at": 5040,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 6,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 3,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 2
+              },
+              {
+                "unit": "person-hour",
+                "amount": 10
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 3,
+            "masterCloses": 3,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.08333333333333333
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 2,
+            "onTime": 3,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-heat",
+          "status": "running",
+          "waitedMinutes": 3600
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 8,
+      "at": 5760,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 2,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 2
+              },
+              {
+                "unit": "person-hour",
+                "amount": 4
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 4,
+            "masterCloses": 4,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0.1111111111111111
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 3,
+            "onTime": 2,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 9,
+      "at": 6480,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 2,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 1
+              },
+              {
+                "unit": "person-hour",
+                "amount": 4
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 0,
+            "masterCloses": 0,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 3,
+            "onTime": 2,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 10,
+      "at": 7200,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 2,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 1
+              },
+              {
+                "unit": "person-hour",
+                "amount": 4
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 0,
+            "masterCloses": 0,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 4,
+            "onTime": 1,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        }
+      ]
+    },
+    {
+      "shift": 11,
+      "at": 7920,
+      "metrics": {
+        "portfolio": {
+          "value": {
+            "openCount": 5,
+            "remainderNormHours": 2,
+            "ordersWithoutNorm": 0
+          },
+          "coverage": 1
+        },
+        "overload": {
+          "value": {
+            "overloadedCount": 2,
+            "queueByUnit": [
+              {
+                "unit": "charge-day",
+                "amount": 1
+              },
+              {
+                "unit": "person-hour",
+                "amount": 4
+              }
+            ]
+          },
+          "coverage": 1
+        },
+        "acceptedShift": {
+          "value": {
+            "normHours": 0,
+            "masterCloses": 0,
+            "workerCloses": 0,
+            "duplicateFacts": 0
+          },
+          "coverage": 0
+        },
+        "scheduleRisk": {
+          "value": {
+            "overdue": 4,
+            "onTime": 1,
+            "unevaluated": 0
+          },
+          "coverage": 1
+        }
+      },
+      "batches": [
+        {
+          "batchId": "batch-1",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-2",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-3",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-4",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-5",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-6",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
+        },
+        {
+          "batchId": "batch-7",
+          "areaId": "area-fg",
+          "status": "done",
+          "waitedMinutes": 0
         }
       ]
     }
