@@ -390,7 +390,10 @@ test('разбор смены 5 запрашивает только срез ц�
   }
   const loader = read('lib/review.ts');
   assert.equal(loader.match(/\.shop\(/g)?.length, 1);
+  assert.equal(loader.includes('.trace('), false);
+  assert.equal(loader.includes('/trace'), false);
   assert.equal(read('screens/ReviewScreen.tsx').includes('.shop('), false);
+  assert.equal(read('screens/ReviewScreen.tsx').includes('.trace('), false);
   assert.equal(read('lib/dashboard.ts').includes('.shop('), false);
   assert.equal(read('screens/DashboardScreen.tsx').includes('.shop('), false);
 });

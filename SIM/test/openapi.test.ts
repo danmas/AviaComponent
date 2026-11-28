@@ -107,7 +107,7 @@ test('openapi.json помечен как сгенерированный и на�
   assert.equal(raw['openapi'], '3.1.0');
 });
 
-test('описание содержит все шесть маршрутов версии 1', () => {
+test('описание содержит маршруты версии 1, включая след', () => {
   const api = readOpenApi();
   const paths = Object.keys(api.paths ?? {}).sort();
   assert.deepEqual(paths, [
@@ -117,6 +117,7 @@ test('описание содержит все шесть маршрутов в�
     pathV1('/sessions/{id}/decisions'),
     pathV1('/sessions/{id}/roles'),
     pathV1('/sessions/{id}/shop'),
+    pathV1('/sessions/{id}/trace'),
   ]);
   for (const key of paths) {
     assert.ok(key.startsWith('/v1/'), `${key} без версии в пути`);
@@ -160,6 +161,26 @@ test('схема цеха совпадает с фактическим отве�
     const body = (await app.inject({ method: 'GET', url: pathV1(`/sessions/${id}/shop`) })).json();
     const problems: string[] = [];
     compare('ShopResponse', body, schema, problems);
+    assert.deepEqual(problems, [], problems.join('; '));
+  } finally {
+    await app.close();
+  }
+});
+
+test('схема следа совпадает с фактическим ответом', async () => {
+  const api = readOpenApi();
+  const schema = schemaNamed(api, 'TraceResponse');
+  const app = await buildApp();
+  try {
+    const created = await app.inject({
+      method: 'POST',
+      url: pathV1('/sessions'),
+      payload: { seed: 42, level: 'clean', overlay: 'incoming' },
+    });
+    const id = (created.json() as { id: string }).id;
+    const body = (await app.inject({ method: 'GET', url: pathV1(`/sessions/${id}/trace`) })).json();
+    const problems: string[] = [];
+    compare('TraceResponse', body, schema, problems);
     assert.deepEqual(problems, [], problems.join('; '));
   } finally {
     await app.close();

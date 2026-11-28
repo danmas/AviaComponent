@@ -14,6 +14,7 @@ import type {
   RolesResponse,
   SessionResponse,
   ShopResponse,
+  TraceResponse,
 } from './types.ts';
 
 export interface Transport {
@@ -90,6 +91,7 @@ export interface Client {
   roles(id: string, shift?: number): Promise<RolesResponse>;
   decide(id: string, body: DecisionBody): Promise<DecisionResponse>;
   advance(id: string): Promise<AdvanceResponse>;
+  trace(id: string): Promise<TraceResponse>;
   streamUrl(id: string, lastSeq?: number): string;
 }
 
@@ -151,6 +153,9 @@ export function createClient(options: ClientOptions): Client {
     },
     advance(id) {
       return call<AdvanceResponse>(url(`/sessions/${id}/advance`), { method: 'POST' });
+    },
+    trace(id) {
+      return call<TraceResponse>(url(`/sessions/${id}/trace`));
     },
     streamUrl(id, lastSeq) {
       const wsBase = base.replace(/^http/, 'ws');

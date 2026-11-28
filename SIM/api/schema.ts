@@ -176,6 +176,35 @@ async function main(): Promise<void> {
     record('SessionResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}`) })).json());
     record('ShopResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${incomingId}/shop`) })).json());
 
+    // След с обоими видами решений: приём заказа и приоритет партии.
+    // Схема событий — объединение полей всех шести типов.
+    const traced = await app.inject({
+      method: 'POST',
+      url: pathV1('/sessions'),
+      payload: { seed: SEED, level: 'clean', overlay: 'incoming' },
+    });
+    const tracedId = (traced.json() as { id: string }).id;
+    for (;;) {
+      const current = (await app.inject({ method: 'GET', url: pathV1(`/sessions/${tracedId}`) })).json() as { currentShift: number };
+      if (current.currentShift === 4) {
+        await app.inject({
+          method: 'POST',
+          url: pathV1(`/sessions/${tracedId}/decisions`),
+          payload: { type: 'accept-order', orderId: 'order-5' },
+        });
+        await app.inject({
+          method: 'POST',
+          url: pathV1(`/sessions/${tracedId}/decisions`),
+          payload: { type: 'priority', batchId: 'batch-1', rank: 1 },
+        });
+      }
+      if (current.currentShift >= 11) {
+        break;
+      }
+      await app.inject({ method: 'POST', url: pathV1(`/sessions/${tracedId}/advance`) });
+    }
+    record('TraceResponse', (await app.inject({ method: 'GET', url: pathV1(`/sessions/${tracedId}/trace`) })).json());
+
     const openapi = {
       x_generated: true,
       'x-generated-by': 'node --experimental-strip-types api/schema.ts',
@@ -242,6 +271,16 @@ async function main(): Promise<void> {
             parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
             responses: {
               200: { description: 'Слой roles', content: { 'application/json': { schema: { $ref: '#/components/schemas/RolesResponse' } } } },
+            },
+          },
+        },
+        [pathV1('/sessions/{id}/trace')]: {
+          get: {
+            summary: 'След прогона: события движения и кадры выданных смен',
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: {
+              200: { description: 'След', content: { 'application/json': { schema: { $ref: '#/components/schemas/TraceResponse' } } } },
+              404: { description: 'Сессия не найдена', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
             },
           },
         },

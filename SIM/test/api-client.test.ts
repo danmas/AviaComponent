@@ -154,6 +154,20 @@ test('клиент отвергает ответ чужой версии, а н�
   await assert.rejects(() => client.session('x'), /Ответ версии «v2», клиент ждёт «v1»/);
 });
 
+test('клиент читает след сессии', async () => {
+  await withClient(async (client) => {
+    const created = await client.createSession({ seed: 42, level: 'clean', overlay: 'incoming' });
+    const trace = await client.trace(created.id);
+    assert.equal(trace.apiVersion, 'v1');
+    assert.equal(trace.meta.seed, 42);
+    assert.equal(trace.meta.level, 'clean');
+    assert.equal(trace.meta.overlay, 'incoming');
+    assert.ok(trace.events.length > 0);
+    assert.equal(trace.frames.length, 1);
+    assert.equal(trace.frames[0]?.shift, 0);
+  });
+});
+
 test('клиент работает в Node без браузерных глобальных объектов', async () => {
   // fetch в Node 24 есть, но клиент обязан брать его из среды, а не из window.
   assert.equal(typeof (globalThis as { window?: unknown }).window, 'undefined');

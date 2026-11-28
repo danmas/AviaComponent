@@ -181,6 +181,43 @@
         }
       }
     },
+    "/v1/sessions/{id}/trace": {
+      "get": {
+        "summary": "След прогона: события движения и кадры выданных смен",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "След",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Сессия не найдена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{id}/decisions": {
       "post": {
         "summary": "Решение о приоритете, действует вперёд",
@@ -1992,6 +2029,308 @@
           "apiVersion",
           "error",
           "supported"
+        ]
+      },
+      "TraceResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "seed": {
+                "type": "integer"
+              },
+              "level": {
+                "type": "string"
+              },
+              "overlay": {
+                "type": "string"
+              },
+              "horizonShifts": {
+                "type": "integer"
+              },
+              "shiftMinutes": {
+                "type": "integer"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "horizonShifts",
+              "level",
+              "note",
+              "overlay",
+              "seed",
+              "shiftMinutes"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "integer"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "orderId": {
+                  "type": "string"
+                },
+                "contractDue": {
+                  "type": "integer"
+                },
+                "batchId": {
+                  "type": "string"
+                },
+                "appearedAt": {
+                  "type": "integer"
+                },
+                "qty": {
+                  "type": "integer"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "areaId": {
+                  "type": "string"
+                },
+                "readyAt": {
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "type": "integer"
+                },
+                "done": {
+                  "type": "integer"
+                },
+                "good": {
+                  "type": "integer"
+                },
+                "decisionType": {
+                  "type": "string"
+                },
+                "appliedAt": {
+                  "type": "integer"
+                },
+                "rank": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "at",
+                "type"
+              ]
+            }
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "shift": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "integer"
+                },
+                "metrics": {
+                  "type": "object",
+                  "properties": {
+                    "portfolio": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "object",
+                          "properties": {
+                            "openCount": {
+                              "type": "integer"
+                            },
+                            "remainderNormHours": {
+                              "type": "integer"
+                            },
+                            "ordersWithoutNorm": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "openCount",
+                            "ordersWithoutNorm",
+                            "remainderNormHours"
+                          ]
+                        },
+                        "coverage": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "coverage",
+                        "value"
+                      ]
+                    },
+                    "overload": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "object",
+                          "properties": {
+                            "overloadedCount": {
+                              "type": "integer"
+                            },
+                            "queueByUnit": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "unit": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "amount",
+                                  "unit"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "overloadedCount",
+                            "queueByUnit"
+                          ]
+                        },
+                        "coverage": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "coverage",
+                        "value"
+                      ]
+                    },
+                    "acceptedShift": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "object",
+                          "properties": {
+                            "normHours": {
+                              "type": "integer"
+                            },
+                            "masterCloses": {
+                              "type": "integer"
+                            },
+                            "workerCloses": {
+                              "type": "integer"
+                            },
+                            "duplicateFacts": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "duplicateFacts",
+                            "masterCloses",
+                            "normHours",
+                            "workerCloses"
+                          ]
+                        },
+                        "coverage": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "coverage",
+                        "value"
+                      ]
+                    },
+                    "scheduleRisk": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "object",
+                          "properties": {
+                            "overdue": {
+                              "type": "integer"
+                            },
+                            "onTime": {
+                              "type": "integer"
+                            },
+                            "unevaluated": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "onTime",
+                            "overdue",
+                            "unevaluated"
+                          ]
+                        },
+                        "coverage": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "coverage",
+                        "value"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "acceptedShift",
+                    "overload",
+                    "portfolio",
+                    "scheduleRisk"
+                  ]
+                },
+                "batches": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "batchId": {
+                        "type": "string"
+                      },
+                      "areaId": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "waitedMinutes": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "areaId",
+                      "batchId",
+                      "status",
+                      "waitedMinutes"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "at",
+                "batches",
+                "metrics",
+                "shift"
+              ]
+            }
+          }
+        },
+        "required": [
+          "apiVersion",
+          "events",
+          "frames",
+          "meta"
         ]
       },
       "EventTypes": {

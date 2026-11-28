@@ -180,6 +180,13 @@ export async function buildApp(
     return versioned(store.roles(id, readShift(request.query)));
   });
 
+  app.get(pathV1('/sessions/:id/trace'), {
+    schema: { response: { 200: anyObject, 404: errorBody } },
+  }, async (request) => {
+    const { id } = request.params as { id: string };
+    return versioned(store.trace(id));
+  });
+
   app.post(pathV1('/sessions/:id/decisions'), {
     schema: {
       body: {

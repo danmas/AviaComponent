@@ -427,5 +427,83 @@ export type UnknownVersionResponse = {
   readonly supported: readonly string[];
 };
 
+/** Схема `TraceResponse` из openapi.json. */
+export type TraceResponse = {
+  readonly apiVersion: string;
+  readonly meta: {
+    readonly seed: number;
+    readonly level: string;
+    readonly overlay: string;
+    readonly horizonShifts: number;
+    readonly shiftMinutes: number;
+    readonly note: string;
+  };
+  readonly events: readonly {
+    readonly at: number;
+    readonly type: string;
+    readonly orderId?: string;
+    readonly contractDue?: number;
+    readonly batchId?: string;
+    readonly appearedAt?: number;
+    readonly qty?: number;
+    readonly operationId?: string;
+    readonly areaId?: string;
+    readonly readyAt?: number;
+    readonly startedAt?: number;
+    readonly done?: number;
+    readonly good?: number;
+    readonly decisionType?: string;
+    readonly appliedAt?: number;
+    readonly rank: number | null;
+  }[];
+  readonly frames: readonly {
+    readonly shift: number;
+    readonly at: number;
+    readonly metrics: {
+      readonly portfolio: {
+        readonly value: {
+          readonly openCount: number;
+          readonly remainderNormHours: number;
+          readonly ordersWithoutNorm: number;
+        };
+        readonly coverage: number;
+      };
+      readonly overload: {
+        readonly value: {
+          readonly overloadedCount: number;
+          readonly queueByUnit: readonly {
+            readonly unit: string;
+            readonly amount: number;
+          }[];
+        };
+        readonly coverage: number;
+      };
+      readonly acceptedShift: {
+        readonly value: {
+          readonly normHours: number;
+          readonly masterCloses: number;
+          readonly workerCloses: number;
+          readonly duplicateFacts: number;
+        };
+        readonly coverage: number;
+      };
+      readonly scheduleRisk: {
+        readonly value: {
+          readonly overdue: number;
+          readonly onTime: number;
+          readonly unevaluated: number;
+        };
+        readonly coverage: number;
+      };
+    };
+    readonly batches: readonly {
+      readonly batchId: string;
+      readonly areaId: string;
+      readonly status: string;
+      readonly waitedMinutes: number;
+    }[];
+  }[];
+};
+
 /** Схема `EventTypes` из openapi.json. */
 export type EventTypes = "shift-started" | "shift-completed" | "metrics-updated" | "decision-applied" | "session-finished";

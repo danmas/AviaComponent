@@ -116,6 +116,8 @@ export interface RunResult {
   readonly starts: readonly ShopStart[];
   readonly decisionJournal: readonly DecisionRecord[];
   readonly contractEvents: readonly unknown[];
+  /** Порции закрытия, как их записал цех. В отчёт не входят: отчёт их группирует. */
+  readonly completions: readonly ShopCompletion[];
 }
 
 function processingSteps(): readonly StepRef[] {
@@ -639,6 +641,7 @@ export function runStand(input: {
     starts: shopRun.starts,
     decisionJournal,
     contractEvents,
+    completions: shopRun.completions,
   };
 }
 

@@ -11,6 +11,7 @@ import { ordersFor } from '../run/catalog.ts';
 import { EXPECTED, LEVEL_NAMES, OVERLAY_NAMES, type LevelName, type OverlayName } from '../run/levels.ts';
 import { type OrderChoice } from '../run/run.ts';
 import { runStand } from '../run/run.ts';
+import { buildTrace, type Trace, type TraceDecision, type TraceFrameSource } from '../run/trace.ts';
 import { orderDecisionRecord, recordDecision, type DecisionRecord } from '../system/journal.ts';
 import { fourMetrics, summarySlice, type FourMetrics, type MetricId } from '../system/metrics.ts';
 import type { SystemRecords } from '../system/types.ts';
@@ -470,6 +471,7 @@ export interface SessionStore {
   roles(id: string, shift?: number): RolesBody;
   decide(id: string, input: DecisionInput): { decision: DecisionRow; journal: DecisionRecord; event: SessionEvent };
   advance(id: string): { currentShift: number; summary: SummaryBody; events: readonly SessionEvent[] };
+  trace(id: string): Trace;
   replay(id: string, lastSeq: number): ReplaySlice<SessionEvent>;
   attach(id: string, sender: Sender, lastSeq: number, options?: { replay?: boolean }): void;
   detach(id: string, sender: Sender): void;
@@ -616,6 +618,53 @@ export function createSessionStore(): SessionStore {
         payload: { type: 'priority', batchId, rank, appliedAt },
       });
       return { decision, journal, event };
+    },
+
+    trace(id) {
+      const session = take(id);
+      const playedShifts = session.currentShift + 1;
+      const orderChoices = orderChoicesFor(session, session.currentShift);
+      const result = runStand({
+        seed: session.seed,
+        level: session.level,
+        overlay: session.overlay,
+        horizonShifts: playedShifts,
+        priority: priorityFor(session, session.currentShift),
+        ...(orderChoices.length === 0 ? {} : { orderChoices }),
+      });
+      const frames: TraceFrameSource[] = [];
+      for (let shift = 0; shift < playedShifts; shift += 1) {
+        const slice = session.issued[shift];
+        if (slice === undefined) {
+          throw new ApiError(500, `Срез смены ${shift} не выдан.`);
+        }
+        frames.push({
+          shift,
+          metrics: slice.summary.metrics,
+          batches: slice.shop.reality.batches,
+          operations: slice.shop.reality.operations,
+        });
+      }
+      const decisions: TraceDecision[] = session.decisions.map((decision) => {
+        if (decision.type === 'priority') {
+          return { type: 'priority', batchId: decision.batchId, rank: decision.rank, appliedAt: decision.appliedAt };
+        }
+        return { type: decision.type, orderId: decision.orderId, appliedAt: decision.appliedAt };
+      });
+      return buildTrace({
+        seed: session.seed,
+        level: session.level,
+        overlay: session.overlay,
+        horizonShifts: session.horizonShifts,
+        playedShifts,
+        orders: ordersFor(session.level, session.overlay),
+        batches: result.shop.batches,
+        operations: result.shop.operations,
+        starts: result.starts,
+        completions: result.completions,
+        decisions,
+        frames,
+      });
     },
 
     advance(id) {
