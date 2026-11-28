@@ -1,4 +1,5 @@
 {
+  "apiVersion": "v1",
   "meta": {
     "seed": 42,
     "level": "clean",
@@ -31,28 +32,60 @@
       "readyAt": 0
     },
     {
-      "at": 40,
+      "at": 240,
       "type": "operation-started",
       "operationId": "batch-1-op-0",
       "batchId": "batch-1",
       "areaId": "area-cnc-turn",
-      "startedAt": 40
+      "startedAt": 240
     },
     {
-      "at": 180,
+      "at": 360,
       "type": "operation-completed",
       "operationId": "batch-1-op-0",
       "batchId": "batch-1",
-      "done": 4,
-      "good": 4
+      "done": 2,
+      "good": 2
     },
     {
-      "at": 180,
+      "at": 360,
       "type": "operation-ready",
       "operationId": "batch-1-op-1",
       "batchId": "batch-1",
       "areaId": "area-mill",
-      "readyAt": 180
+      "readyAt": 360
+    },
+    {
+      "at": 360,
+      "type": "operation-started",
+      "operationId": "batch-1-op-1",
+      "batchId": "batch-1",
+      "areaId": "area-mill",
+      "startedAt": 360
+    },
+    {
+      "at": 480,
+      "type": "operation-completed",
+      "operationId": "batch-1-op-0",
+      "batchId": "batch-1",
+      "done": 2,
+      "good": 2
+    },
+    {
+      "at": 480,
+      "type": "operation-completed",
+      "operationId": "batch-1-op-1",
+      "batchId": "batch-1",
+      "done": 1,
+      "good": 1
+    },
+    {
+      "at": 600,
+      "type": "operation-completed",
+      "operationId": "batch-1-op-1",
+      "batchId": "batch-1",
+      "done": 3,
+      "good": 3
     },
     {
       "at": 2880,
@@ -91,6 +124,30 @@
       "batchId": "batch-7",
       "areaId": "area-cnc-turn",
       "readyAt": 2880
+    },
+    {
+      "at": 2880,
+      "type": "operation-started",
+      "operationId": "batch-7-op-0",
+      "batchId": "batch-7",
+      "areaId": "area-cnc-turn",
+      "startedAt": 2880
+    },
+    {
+      "at": 3000,
+      "type": "operation-completed",
+      "operationId": "batch-7-op-0",
+      "batchId": "batch-7",
+      "done": 2,
+      "good": 2
+    },
+    {
+      "at": 3120,
+      "type": "operation-completed",
+      "operationId": "batch-7-op-0",
+      "batchId": "batch-7",
+      "done": 2,
+      "good": 2
     }
   ],
   "frames": [
