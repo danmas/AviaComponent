@@ -9,12 +9,12 @@ export interface ScreenParams {
   readonly overlay: 'none' | 'urgent' | 'breakdown' | 'scrap' | 'incoming';
   readonly level: 'clean' | 'late' | 'paper' | 'empty';
   readonly seed: number;
-  readonly view: 'shop' | 'dashboard' | 'review';
+  readonly view: 'shop' | 'dashboard' | 'review' | 'game';
 }
 
 const OVERLAYS = ['none', 'urgent', 'breakdown', 'scrap', 'incoming'] as const;
 const LEVELS = ['clean', 'late', 'paper', 'empty'] as const;
-const VIEWS = ['shop', 'dashboard', 'review'] as const;
+const VIEWS = ['shop', 'dashboard', 'review', 'game'] as const;
 
 function whole(value: string | null, fallback: number, min = 0): number {
   if (value === null || !/^[0-9]+$/.test(value)) {

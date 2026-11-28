@@ -86,8 +86,8 @@ test('закладка «разбор» не сбрасывает сессию �
   assert.equal(next.shiftCount, play.shiftCount);
   assert.equal(next.screen, 'review');
   const tabs = tabsOf('review');
-  assert.deepEqual(tabs.map((tab) => tab.label), ['цех', 'свод', 'разбор']);
-  assert.equal(tabs.length, 3);
+  assert.deepEqual(tabs.map((tab) => tab.label), ['цех', 'свод', 'разбор', 'движение']);
+  assert.equal(tabs.length, 4);
   const review = tabs.find((tab) => tab.id === 'review');
   const shop = tabs.find((tab) => tab.id === 'shop');
   assert.ok(review);

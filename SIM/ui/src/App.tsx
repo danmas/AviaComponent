@@ -8,6 +8,7 @@ import { client } from './lib/api.ts';
 import { screenParams, type ScreenParams } from './lib/params.ts';
 import { followServer, openScreen, viewShift, type PlayState, type ScreenId } from './lib/session.ts';
 import { DashboardScreen } from './screens/DashboardScreen.tsx';
+import { GameScreen } from './screens/GameScreen.tsx';
 import { ReviewScreen } from './screens/ReviewScreen.tsx';
 import { ShopScreen } from './screens/ShopScreen.tsx';
 
@@ -28,7 +29,11 @@ export function App(): JSX.Element {
           overlay: params.overlay,
         });
         let shift = 0;
-        for (let step = 0; step < params.shift; step += 1) {
+        // Экран движения проигрывает весь прогон сразу: след короткий, если
+        // сервер не дошёл до последней смены. Остальные экраны открываются
+        // на смене из адреса.
+        const target = params.view === 'game' ? created.horizonShifts - 1 : params.shift;
+        for (let step = 0; step < target; step += 1) {
           const advanced = await client.advance(created.id);
           shift = advanced.currentShift;
         }
@@ -85,6 +90,9 @@ export function App(): JSX.Element {
   }
   if (play.screen === 'review') {
     return <ReviewScreen {...shared} />;
+  }
+  if (play.screen === 'game') {
+    return <GameScreen play={play} onScreen={select} onStep={step} />;
   }
   return <ShopScreen {...shared} />;
 }
