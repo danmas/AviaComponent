@@ -1,8 +1,8 @@
 /**
- * Состояние прогона общее для цеха и свода.
+ * Состояние прогона общее для цеха, свода и разбора.
  * Переключение экрана не меняет сессию и смену и не создаёт новый прогон.
  */
-export type ScreenId = 'shop' | 'dashboard';
+export type ScreenId = 'shop' | 'dashboard' | 'review';
 
 export interface PlayState {
   readonly sessionId: string;
@@ -15,6 +15,7 @@ export interface PlayState {
 export const SCREEN_TABS = [
   { id: 'shop', label: 'цех' },
   { id: 'dashboard', label: 'свод' },
+  { id: 'review', label: 'разбор' },
 ] as const;
 
 export function tabsOf(screen: ScreenId): readonly { id: ScreenId; label: string; active: boolean }[] {

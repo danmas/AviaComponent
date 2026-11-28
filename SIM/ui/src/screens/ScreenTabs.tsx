@@ -1,7 +1,7 @@
 import type { ScreenId } from '../lib/session.ts';
 import { tabsOf } from '../lib/session.ts';
 
-/** Закладки цеха и свода. Текущая подсвечена, обе всегда на месте. */
+/** Закладки цеха, свода и разбора. Текущая подсвечена, все три всегда на месте. */
 export function ScreenTabs(props: {
   readonly screen: ScreenId;
   readonly onScreen: (screen: ScreenId) => void;

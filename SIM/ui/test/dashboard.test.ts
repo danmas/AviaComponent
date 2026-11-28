@@ -127,8 +127,8 @@ test('переключение экрана не меняет сессию и с
   assert.equal(next.shiftCount, 12);
   assert.equal(next.screen, 'dashboard');
   const tabs = tabsOf('dashboard');
-  assert.deepEqual(tabs.map((tab) => tab.label), ['цех', 'свод']);
-  assert.equal(tabs.length, 2);
+  assert.deepEqual(tabs.map((tab) => tab.label), ['цех', 'свод', 'разбор']);
+  assert.equal(tabs.length, 3);
   const shop = tabs.find((tab) => tab.id === 'shop');
   const dash = tabs.find((tab) => tab.id === 'dashboard');
   assert.ok(shop);

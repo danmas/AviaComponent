@@ -528,3 +528,27 @@ code {
   border-bottom: 1px solid var(--rule);
   margin-bottom: 4px;
 }
+
+.fact-mark {
+  margin: 16px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--stamp);
+  color: var(--stamp);
+  font-size: 13px;
+}
+
+.record-mark {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+}
+
+td[data-record='true'] > span {
+  display: block;
+}
+
+.verdict {
+  font-variant-numeric: tabular-nums;
+}

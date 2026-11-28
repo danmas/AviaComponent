@@ -1,6 +1,6 @@
 /**
- * Каркас двух экранов. Сессия создаётся здесь один раз.
- * Цех и свод только переключают вид.
+ * Каркас трёх экранов. Сессия создаётся здесь один раз.
+ * Цех, свод и разбор только переключают вид.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -8,6 +8,7 @@ import { client } from './lib/api.ts';
 import { screenParams, type ScreenParams } from './lib/params.ts';
 import { followServer, openScreen, viewShift, type PlayState, type ScreenId } from './lib/session.ts';
 import { DashboardScreen } from './screens/DashboardScreen.tsx';
+import { ReviewScreen } from './screens/ReviewScreen.tsx';
 import { ShopScreen } from './screens/ShopScreen.tsx';
 
 export function App(): JSX.Element {
@@ -79,9 +80,13 @@ export function App(): JSX.Element {
   }
 
   const shared = { play, params, onScreen: select, onStep: step, onView: show };
-  return play.screen === 'dashboard'
-    ? <DashboardScreen {...shared} />
-    : <ShopScreen {...shared} />;
+  if (play.screen === 'dashboard') {
+    return <DashboardScreen {...shared} />;
+  }
+  if (play.screen === 'review') {
+    return <ReviewScreen {...shared} />;
+  }
+  return <ShopScreen {...shared} />;
 }
 
 export type { ScreenParams };
